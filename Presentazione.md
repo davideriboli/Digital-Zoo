@@ -1,6 +1,6 @@
 # Digital Zoo: la cibernetica delle origini tra codice e gioco
 
-**Laboratorio divulgativo per la Notte dei Ricercatori (Sassari, 2026)**  
+**Laboratorio divulgativo per la Notte dei Ricercatori (Sassari, 25/26 settembre 2026)**  
 **Curatore:** prof. Davide Riboli, ordinario di "Teorie e Tecniche Computazionali" presso l'Accademia di Belle Arti "M. Sironi" di Sassari.
 
 ---
