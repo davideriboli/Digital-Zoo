@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Craig (1987) — Banco di Pesci ed Intelligenza di Sciame</title>
+    <style>
+        :root {
+            --bg-color: #020a12;
+            --panel-bg: rgba(4, 20, 32, 0.92);
+            --border-color: rgba(0, 243, 255, 0.35);
+            --text-main: #e0f7fc;
+            --text-muted: #6496a6;
+            --font-main: 'Courier New', Courier, monospace;
+            --accent-cyan: #00f3ff;
+            --accent-lime: #39ff14;
+            --accent-amber: #ffbb00;
+            --accent-danger: #ff007f;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            touch-action: none;
+        }
+
+        canvas#aquariumCanvas {
+            display: block;
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            cursor: crosshair;
+        }
+
+        #ham {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 300;
+            width: 44px;
+            height: 44px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+        }
+        #ham span { width: 22px; height: 2px; background: var(--accent-cyan); transition: all 0.3s; }
+        #ham.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        #ham.open span:nth-child(2) { opacity: 0; }
+        #ham.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        #status-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            background: var(--panel-bg);
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(5px);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.15);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* ── INTRO MODAL ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            background: rgba(1, 6, 12, 0.94);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .modal-overlay.visible { display: flex; opacity: 1; }
+
+        .modal-card {
+            max-width: 560px;
+            background: rgba(4, 22, 34, 0.96);
+            border: 2px solid var(--accent-cyan);
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.25);
+        }
+        .modal-card h2 {
+            font-size: 1.8rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 5px;
+        }
+        .modal-subtitle {
+            font-size: 0.88rem;
+            color: var(--accent-amber);
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+        .modal-desc {
+            font-size: 0.86rem;
+            line-height: 1.6;
+            color: var(--text-main);
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 11px;
+            margin-bottom: 8px;
+            background: rgba(0, 243, 255, 0.12);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            font-size: 0.82rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 5px;
+            transition: all 0.2s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn:hover, .btn:active { background: rgba(0, 243, 255, 0.3); border-color: var(--accent-cyan); }
+        .btn-main {
+            text-align: center;
+            justify-content: center;
+            padding: 14px;
+            font-weight: bold;
+            background: var(--accent-cyan);
+            color: #000;
+            border: none;
+            font-size: 0.88rem;
+        }
+        .btn-main:hover { background: #55f6ff; color: #000; }
+        .btn-amber { background: rgba(255, 187, 0, 0.15); border-color: rgba(255, 187, 0, 0.4); color: var(--accent-amber); }
+        .btn-amber:hover { background: rgba(255, 187, 0, 0.35); border-color: var(--accent-amber); }
+
+        .key-badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            color: var(--accent-cyan);
+        }
+
+        /* ── DRAWER & CONTROLS ── */
+        #controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: min(360px, 85vw);
+            z-index: 260;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 75px 20px 25px 20px;
+            display: none;
+            overflow-y: auto;
+            backdrop-filter: blur(8px);
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        }
+        #controls.open { display: block; }
+        #controls h1 {
+            font-size: 1.3rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .control-group { margin-bottom: 16px; }
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            margin-bottom: 5px;
+            color: var(--text-main);
+        }
+        .help-text { font-size: 0.68rem; color: var(--text-muted); line-height: 1.3; display: block; margin-top: 3px; }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-cyan);
+            height: 5px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        #log-box {
+            height: 110px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            overflow-y: auto;
+            margin-top: 15px;
+            line-height: 1.4;
+        }
+        #log-box div { margin-bottom: 3px; }
+
+        .legend-text { font-size: 0.75rem; line-height: 1.5; color: var(--text-muted); margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 12px; }
+        .legend-text strong { color: var(--accent-cyan); }
+
+        #ov {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 250; display: none; backdrop-filter: blur(2px);
+        }
+        #ov.show { display: block; }
+
+        /* Floating quick action toolbar */
+        #quick-toolbar {
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            display: flex;
+            gap: 8px;
+            background: var(--panel-bg);
+            padding: 8px 14px;
+            border-radius: 30px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 20px rgba(0,0,0,0.6);
+            max-width: 95vw;
+            overflow-x: auto;
+        }
+        .quick-btn {
+            background: rgba(0, 243, 255, 0.12);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-family: var(--font-main);
+            font-size: 0.76rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+        .quick-btn:hover { background: var(--accent-cyan); color: #000; }
+        .quick-btn.active { background: var(--accent-cyan); color: #000; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <canvas id="aquariumCanvas"></canvas>
+
+    <div id="ham">
+        <span></span><span></span><span></span>
+    </div>
+
+    <div id="ov"></div>
+
+    <div id="status-badge">
+        <span>PESCI: <strong id="fish-counter" style="color:var(--accent-lime)">10</strong></span>
+        <span>•</span>
+        <span id="flock-status" style="color:var(--accent-cyan); font-weight:bold;">BANCO ARMONIOSO 🐟</span>
+    </div>
+
+    <!-- Quick floating toolbar -->
+    <div id="quick-toolbar">
+        <button id="quick-mode-feed" class="quick-btn active">🌾 Modalità Cibo</button>
+        <button id="quick-mode-predator" class="quick-btn" style="border-color:var(--accent-danger); color:var(--accent-danger);">🦈 Modalità Predatore</button>
+        <button id="quick-add-fish" class="quick-btn">🐟 Aggiungi Pesci</button>
+        <button id="quick-pause" class="quick-btn">⏸️ Pausa</button>
+        <button id="quick-photo" class="quick-btn" style="border-color:var(--accent-amber); color:var(--accent-amber);">📸 Foto PNG</button>
+        <button id="quick-clear" class="quick-btn">🧹 Pulisci</button>
+    </div>
+
+    <!-- Intro Modal -->
+    <div id="intro-modal" class="modal-overlay visible">
+        <div class="modal-card">
+            <h2>Craig (1987)</h2>
+            <p class="modal-subtitle">"Craig Reynolds & L'Intelligenza Emergente dello Sciame"</p>
+            <p class="modal-desc">
+                Nel 1987 presso i Symbolics Graphics Labs, <strong>Craig Reynolds</strong> inventò l'<strong>Algoritmo Boids</strong>—una pietra miliare della Vita Artificiale che dimostra come un comportamento collettivo complesso emerga da 3 regole microscopiche locali:<br><br>
+                1. <strong>Separazione:</strong> Evita collisioni con i pesci vicini.<br>
+                2. <strong>Allineamento:</strong> Orienta il nuoto verso la direzione media dei vicini.<br>
+                3. <strong>Coesione:</strong> Muoviti verso il centro di massa del banco.<br><br>
+                Tocca l'oceano per disperdere fiocchi di cibo, introdurre squali predatori o regolare le forze dello sciame!
+            </p>
+            <button id="start-btn" class="btn btn-main" onclick="document.getElementById('intro-modal').classList.remove('visible'); document.getElementById('intro-modal').style.display='none';">Immergiti nello Sciame Marino</button>
+        </div>
+    </div>
+
+    <!-- UI Panel / Drawer -->
+    <div id="controls">
+        <h1>Craig (1987)</h1>
+
+        <button id="btn-toggle-pause" class="btn">
+            <span id="lbl-pause">Pausa Simulazione</span>
+            <span class="key-badge">Spazio</span>
+        </button>
+
+        <button id="btn-photo" class="btn btn-amber">
+            <span>📸 Scatta Foto Oceano (PNG)</span>
+            <span class="key-badge">P</span>
+        </button>
+
+        <button id="btn-add-fish" class="btn">
+            <span>Aggiungi 10 Pesci di Banco</span>
+            <span class="key-badge">F</span>
+        </button>
+
+        <button id="btn-add-predator" class="btn" style="border-color:var(--accent-danger); color:var(--accent-danger);">
+            <span>Rilascia Squalo Predatore 🦈</span>
+            <span class="key-badge">S</span>
+        </button>
+
+        <button id="btn-clear" class="btn">
+            <span>Pulisci Oceano e Sciame</span>
+            <span class="key-badge">C</span>
+        </button>
+
+        <div class="control-group" style="margin-top: 15px;">
+            <label>Separazione (Repulsione): <span id="val-sep" style="color:var(--accent-cyan)">1.5</span></label>
+            <input type="range" id="param-sep" min="0" max="3" step="0.1" value="1.5" oninput="weights.sep = parseFloat(this.value); document.getElementById('val-sep').innerText = this.value;">
+            <span class="help-text">Forza che impedisce ai pesci di scontrarsi tra loro.</span>
+        </div>
+
+        <div class="control-group">
+            <label>Allineamento (Direzione): <span id="val-ali" style="color:var(--accent-cyan)">1.0</span></label>
+            <input type="range" id="param-ali" min="0" max="3" step="0.1" value="1.0" oninput="weights.ali = parseFloat(this.value); document.getElementById('val-ali').innerText = this.value;">
+            <span class="help-text">Forza che sincronizza la rotta con i compagni vicini.</span>
+        </div>
+
+        <div class="control-group">
+            <label>Coesione (Attrazione): <span id="val-coh" style="color:var(--accent-cyan)">1.0</span></label>
+            <input type="range" id="param-coh" min="0" max="3" step="0.1" value="1.0" oninput="weights.coh = parseFloat(this.value); document.getElementById('val-coh').innerText = this.value;">
+            <span class="help-text">Forza di attrattiva verso il centro di massa dello sciame.</span>
+        </div>
+
+        <div class="control-group">
+            <label>Raggio di Percezione: <span id="val-rad" style="color:var(--accent-cyan)">50px</span></label>
+            <input type="range" id="param-rad" min="20" max="120" step="5" value="50" oninput="perceptionRadius = parseFloat(this.value); document.getElementById('val-rad').innerText = this.value + 'px';">
+            <span class="help-text">Distanza di avvistamento dei compagni per ciascun pesce.</span>
+        </div>
+
+        <div id="log-box"></div>
+
+        <div class="legend-text">
+            <strong>SCOPERTA DELLO SCIAME EMERGENTE:</strong><br><br>
+            1. <strong>Tocca lo schermo</strong> in Modalità Cibo per disperdere fiocchi di mangime brillante.<br>
+            2. Passa alla <strong>Modalità Predatore [S]</strong> per inseguire il banco con uno squalo!<br>
+            3. Modifica <strong>Separazione, Allineamento e Coesione</strong> per osservare la formazione spontanea di sotto-gruppi, spirali e vortici!
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('aquariumCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        // Classe Vettore 2D
+        class Vector {
+            constructor(x = 0, y = 0) {
+                this.x = x;
+                this.y = y;
+            }
+            add(v) { this.x += v.x; this.y += v.y; return this; }
+            sub(v) { this.x -= v.x; this.y -= v.y; return this; }
+            mult(n) { this.x *= n; this.y *= n; return this; }
+            div(n) { if (n !== 0) { this.x /= n; this.y /= n; } return this; }
+            mag() { return Math.sqrt(this.x * this.x + this.y * this.y); }
+            setMag(n) { return this.normalize().mult(n); }
+            normalize() { const m = this.mag(); if (m > 0) this.div(m); return this; }
+            limit(max) { if (this.mag() > max) this.setMag(max); return this; }
+            static dist(v1, v2) { return Math.sqrt((v1.x - v2.x) ** 2 + (v1.y - v2.y) ** 2); }
+        }
+
+        // Parametri Globali di Simulazione
+        let perceptionRadius = 50;
+        let weights = { sep: 1.5, ali: 1.0, coh: 1.0 };
+        let isRunning = true;
+
+        const FISH_PALETTE = [
+            '#00f3ff', // Ciano Neon
+            '#39ff14', // Verde Lime
+            '#00ffaa', // Verde Primavera
+            '#ffbb00', // Giallo Oro
+            '#a855f7'  // Viola Elettrico
+        ];
+
+        // ── CLASSE PESCE (BOID) ──
+        class Boid {
+            constructor(x, y) {
+                this.pos = new Vector(x, y);
+                const angle = Math.random() * Math.PI * 2;
+                this.vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(Math.random() * 2 + 2);
+                this.acc = new Vector();
+                this.maxSpeed = 4;
+                this.maxForce = 0.15;
+                this.size = Math.random() * 3 + 7;
+                this.color = FISH_PALETTE[Math.floor(Math.random() * FISH_PALETTE.length)];
+                this.tailPhase = Math.random() * Math.PI * 2;
+            }
+
+            applyForce(force) {
+                this.acc.add(force);
+            }
+
+            edges() {
+                const margin = 40;
+                if (this.pos.x < -margin) this.pos.x = width + margin;
+                if (this.pos.x > width + margin) this.pos.x = -margin;
+                if (this.pos.y < -margin) this.pos.y = height + margin;
+                if (this.pos.y > height + margin) this.pos.y = -margin;
+            }
+
+            flock(boids, predators, foodItems) {
+                let sep = new Vector();
+                let ali = new Vector();
+                let coh = new Vector();
+                let count = 0;
+
+                for (let other of boids) {
+                    let d = Vector.dist(this.pos, other.pos);
+                    if (other !== this && d < perceptionRadius) {
+                        // 1. Separazione
+                        let diff = new Vector(this.pos.x - other.pos.x, this.pos.y - other.pos.y);
+                        diff.div(d * d);
+                        sep.add(diff);
+
+                        // 2. Allineamento
+                        ali.add(other.vel);
+
+                        // 3. Coesione
+                        coh.add(other.pos);
+
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    sep.div(count).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce);
+                    ali.div(count).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce);
+                    coh.div(count).sub(this.pos).setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce);
+                }
+
+                // 4. Fuga dal Predatore (Squalo)
+                for (let pred of predators) {
+                    let d = Vector.dist(this.pos, pred.pos);
+                    if (d < 160) {
+                        let flee = new Vector(this.pos.x - pred.pos.x, this.pos.y - pred.pos.y);
+                        flee.setMag(this.maxSpeed * 1.8).sub(this.vel).limit(this.maxForce * 2.5);
+                        this.applyForce(flee);
+                    }
+                }
+
+                // 5. Ricerca Cibo (Plancton)
+                if (foodItems.length > 0) {
+                    let closestFood = null;
+                    let recordDist = Infinity;
+                    for (let food of foodItems) {
+                        let d = Vector.dist(this.pos, food.pos);
+                        if (d < recordDist) {
+                            recordDist = d;
+                            closestFood = food;
+                        }
+                    }
+                    if (closestFood && recordDist < 250) {
+                        let seek = new Vector(closestFood.pos.x - this.pos.x, closestFood.pos.y - this.pos.y);
+                        seek.setMag(this.maxSpeed * 1.2).sub(this.vel).limit(this.maxForce * 1.2);
+                        this.applyForce(seek.mult(1.5));
+                    }
+                }
+
+                sep.mult(weights.sep);
+                ali.mult(weights.ali);
+                coh.mult(weights.coh);
+
+                this.applyForce(sep);
+                this.applyForce(ali);
+                this.applyForce(coh);
+            }
+
+            update() {
+                this.vel.add(this.acc);
+                this.vel.limit(this.maxSpeed);
+                this.pos.add(this.vel);
+                this.acc.mult(0);
+                this.tailPhase += this.vel.mag() * 0.18;
+            }
+
+            draw() {
+                const angle = Math.atan2(this.vel.y, this.vel.x);
+                ctx.save();
+                ctx.translate(this.pos.x, this.pos.y);
+                ctx.rotate(angle);
+
+                const sz = this.size;
+
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 8;
+                ctx.fillStyle = this.color;
+                ctx.strokeStyle = this.color;
+
+                // Corpo Idrodinamico
+                ctx.beginPath();
+                ctx.ellipse(0, 0, sz * 1.4, sz * 0.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Pinna Caudale Snodata
+                const tailWiggle = Math.sin(this.tailPhase) * sz * 0.45;
+                ctx.beginPath();
+                ctx.moveTo(-sz * 1.2, 0);
+                ctx.lineTo(-sz * 2.2, -sz * 0.7 + tailWiggle);
+                ctx.lineTo(-sz * 2.2, sz * 0.7 + tailWiggle);
+                ctx.closePath();
+                ctx.fill();
+
+                // Pinne Pettorali
+                ctx.beginPath();
+                ctx.moveTo(-sz * 0.2, sz * 0.3);
+                ctx.lineTo(-sz * 0.6, sz * 0.9);
+                ctx.lineTo(0, sz * 0.5);
+                ctx.moveTo(-sz * 0.2, -sz * 0.3);
+                ctx.lineTo(-sz * 0.6, -sz * 0.9);
+                ctx.lineTo(0, -sz * 0.5);
+                ctx.fill();
+
+                // Occhio Luminoso
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(sz * 0.7, -sz * 0.2, sz * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(sz * 0.75, -sz * 0.2, sz * 0.12, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        // ── CLASSE SQUALO PREDATORE ──
+        class Predator {
+            constructor(x, y) {
+                this.pos = new Vector(x, y);
+                const angle = Math.random() * Math.PI * 2;
+                this.vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(3.5);
+                this.acc = new Vector();
+                this.maxSpeed = 5;
+                this.maxForce = 0.22;
+                this.size = 20;
+                this.tailPhase = Math.random() * Math.PI * 2;
+            }
+
+            update(boids) {
+                let closest = null;
+                let recordDist = Infinity;
+                for (let i = boids.length - 1; i >= 0; i--) {
+                    let b = boids[i];
+                    let d = Vector.dist(this.pos, b.pos);
+
+                    // Cattura e consumo del pesce
+                    if (d < this.size * 1.1) {
+                        boids.splice(i, 1);
+                        playCrunchSound();
+                        logMsg(`🦈 Lo Squalo Predatore ha catturato un pesce! (${boids.length} pesci rimasti)`);
+                        continue;
+                    }
+
+                    if (d < recordDist) {
+                        recordDist = d;
+                        closest = b;
+                    }
+                }
+
+                if (closest && recordDist < 350) {
+                    let chase = new Vector(closest.pos.x - this.pos.x, closest.pos.y - this.pos.y);
+                    chase.setMag(this.maxSpeed).sub(this.vel).limit(this.maxForce);
+                    this.acc.add(chase);
+                }
+
+                this.vel.add(this.acc);
+                this.vel.limit(this.maxSpeed);
+                this.pos.add(this.vel);
+                this.acc.mult(0);
+
+                const margin = 40;
+                if (this.pos.x < -margin) this.pos.x = width + margin;
+                if (this.pos.x > width + margin) this.pos.x = -margin;
+                if (this.pos.y < -margin) this.pos.y = height + margin;
+                if (this.pos.y > height + margin) this.pos.y = -margin;
+
+                this.tailPhase += this.vel.mag() * 0.15;
+            }
+
+            draw() {
+                const angle = Math.atan2(this.vel.y, this.vel.x);
+                ctx.save();
+                ctx.translate(this.pos.x, this.pos.y);
+                ctx.rotate(angle);
+
+                const sz = this.size;
+
+                ctx.shadowColor = '#ff007f';
+                ctx.shadowBlur = 15;
+                ctx.fillStyle = '#ff007f';
+                ctx.strokeStyle = '#ff007f';
+
+                // Corpo dello Squalo
+                ctx.beginPath();
+                ctx.moveTo(sz * 2.0, 0);
+                ctx.quadraticCurveTo(sz * 0.8, -sz * 0.8, -sz * 1.5, -sz * 0.4);
+                ctx.quadraticCurveTo(-sz * 1.8, 0, -sz * 1.5, sz * 0.4);
+                ctx.quadraticCurveTo(sz * 0.8, sz * 0.8, sz * 2.0, 0);
+                ctx.closePath();
+                ctx.fill();
+
+                // Pinna Dorsale Triangolare
+                ctx.beginPath();
+                ctx.moveTo(-sz * 0.1, -sz * 0.6);
+                ctx.lineTo(-sz * 0.8, -sz * 1.8);
+                ctx.lineTo(sz * 0.4, -sz * 0.5);
+                ctx.closePath();
+                ctx.fill();
+
+                // Pinna Caudale
+                const tailWiggle = Math.sin(this.tailPhase) * sz * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(-sz * 1.5, 0);
+                ctx.lineTo(-sz * 2.8, -sz * 1.4 + tailWiggle);
+                ctx.lineTo(-sz * 2.2, 0 + tailWiggle);
+                ctx.lineTo(-sz * 2.7, sz * 0.9 + tailWiggle);
+                ctx.closePath();
+                ctx.fill();
+
+                // Pinne Pettorali
+                ctx.beginPath();
+                ctx.moveTo(0, sz * 0.4);
+                ctx.lineTo(-sz * 0.8, sz * 1.3);
+                ctx.lineTo(sz * 0.4, sz * 0.5);
+                ctx.fill();
+
+                // Occhio Rosso Luminoso
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(sz * 1.1, -sz * 0.22, sz * 0.22, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(sz * 1.15, -sz * 0.22, sz * 0.12, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        // ── CLASSE FIOCCO DI CIBO ──
+        class Food {
+            constructor(x, y) {
+                this.pos = new Vector(x, y);
+                this.life = 300;
+                this.size = Math.random() * 3 + 3;
+            }
+            update() {
+                this.life--;
+                this.pos.y += 0.2;
+            }
+            draw() {
+                ctx.save();
+                ctx.shadowColor = '#ffbb00';
+                ctx.shadowBlur = 10;
+                ctx.fillStyle = '#ffbb00';
+                ctx.beginPath();
+                ctx.arc(this.pos.x, this.pos.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Array di Simulazione
+        const boids = [];
+        const predators = [];
+        const foodItems = [];
+
+        // Inizializza 10 Pesci all'avvio
+        for (let i = 0; i < 10; i++) {
+            boids.push(new Boid(Math.random() * width, Math.random() * height));
+        }
+
+        function addFish(count = 10) {
+            for (let i = 0; i < count; i++) {
+                boids.push(new Boid(width / 2 + (Math.random() - 0.5) * 100, height / 2 + (Math.random() - 0.5) * 100));
+            }
+            logMsg(`Aggiunti ${count} Pesci di Banco 🐟 (Totale: ${boids.length})`);
+        }
+
+        function addPredator(x = Math.random() * width, y = Math.random() * height) {
+            predators.push(new Predator(x, y));
+            logMsg(`Squalo Predatore 🦈 posizionato a (${Math.floor(x)}, ${Math.floor(y)})`);
+        }
+
+        function logMsg(msg) {
+            const box = document.getElementById('log-box');
+            if (!box) return;
+            const div = document.createElement('div');
+            div.innerText = `[${new Date().toLocaleTimeString().split(' ')[0]}] ${msg}`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // ── SINTESI SUONI OCEANICI WEB AUDIO API ──
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) audioCtx = new AudioContextClass();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function playSplashSound() {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(120, now + 0.12);
+
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.16);
+            } catch(e) {}
+        }
+
+        function playCrunchSound() {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(60, now + 0.09);
+
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.15, now + 0.005);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.11);
+            } catch(e) {}
+        }
+
+        function playCameraShutterSound() {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.06);
+
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.15, now + 0.005);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } catch(e) {}
+        }
+
+        function takePhoto() {
+            playCameraShutterSound();
+
+            drawScene();
+
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            link.download = `Craig_Schooling_Fish_${timestamp}.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            logMsg(`📸 Foto Oceano salvata: Craig_Schooling_Fish_${timestamp}.png`);
+        }
+
+        function clearAll() {
+            boids.length = 0;
+            predators.length = 0;
+            foodItems.length = 0;
+            logMsg(`Oceano ripulito. Tocca lo schermo per cibare o aggiungere pesci!`);
+        }
+
+        // ── CICLO PRINCIPALE DI RENDERING ──
+        function drawScene() {
+            ctx.fillStyle = 'rgba(2, 10, 18, 0.4)';
+            ctx.fillRect(0, 0, width, height);
+
+            for (let i = foodItems.length - 1; i >= 0; i--) {
+                foodItems[i].update();
+                foodItems[i].draw();
+
+                for (let b of boids) {
+                    if (Vector.dist(b.pos, foodItems[i].pos) < 12) {
+                        foodItems.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+
+            predators.forEach(p => {
+                if (isRunning) p.update(boids);
+                p.draw();
+            });
+
+            boids.forEach(b => {
+                if (isRunning) {
+                    b.flock(boids, predators, foodItems);
+                    b.update();
+                    b.edges();
+                }
+                b.draw();
+            });
+        }
+
+        function loop() {
+            drawScene();
+
+            const counterEl = document.getElementById('fish-counter');
+            if (counterEl) counterEl.innerText = boids.length;
+
+            const fStatus = document.getElementById('flock-status');
+            if (fStatus) {
+                if (boids.length === 0) {
+                    fStatus.innerText = 'OCEANO VUOTO';
+                    fStatus.style.color = '#00f3ff';
+                } else if (predators.length > 0) {
+                    fStatus.innerText = 'ATTACCO PREDATORE! 🦈';
+                    fStatus.style.color = '#ff007f';
+                } else if (foodItems.length > 0) {
+                    fStatus.innerText = 'FRENESIA ALIMENTARE 🌾';
+                    fStatus.style.color = '#ffbb00';
+                } else {
+                    fStatus.innerText = 'BANCO ARMONIOSO 🐟';
+                    fStatus.style.color = '#00f3ff';
+                }
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // ── GESTIONE INTERAZIONI ──
+        let inputMode = 'feed'; // 'feed' or 'predator'
+
+        canvas.addEventListener('pointerdown', (e) => {
+            getAudioContext();
+            if (e.target !== canvas) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const cx = e.clientX - rect.left;
+            const cy = e.clientY - rect.top;
+
+            if (inputMode === 'predator') {
+                addPredator(cx, cy);
+                playSplashSound();
+            } else {
+                for (let i = 0; i < 5; i++) {
+                    foodItems.push(new Food(cx + (Math.random() - 0.5) * 30, cy + (Math.random() - 0.5) * 30));
+                }
+                playSplashSound();
+                logMsg(`Fiocchi di cibo dispersi in (${Math.floor(cx)}, ${Math.floor(cy)})`);
+            }
+        });
+
+        // Pulsanti della Toolbar
+        const btnFeedMode = document.getElementById('quick-mode-feed');
+        const btnPredMode = document.getElementById('quick-mode-predator');
+
+        btnFeedMode.addEventListener('click', () => {
+            inputMode = 'feed';
+            predators.length = 0; // Rimuove tutti i predatori quando si torna in Modalità Cibo
+            btnFeedMode.classList.add('active');
+            btnPredMode.classList.remove('active');
+            logMsg(`Modalità impostata su: 🌾 Modalità Cibo (Predatori rimossi)`);
+        });
+
+        btnPredMode.addEventListener('click', () => {
+            inputMode = 'predator';
+            btnPredMode.classList.add('active');
+            btnFeedMode.classList.remove('active');
+            logMsg(`Modalità impostata su: 🦈 Modalità Predatore`);
+        });
+
+        document.getElementById('quick-add-fish').addEventListener('click', () => addFish(10));
+        document.getElementById('btn-add-fish').addEventListener('click', () => addFish(10));
+        document.getElementById('btn-add-predator').addEventListener('click', () => addPredator());
+
+        document.getElementById('quick-pause').addEventListener('click', togglePause);
+        document.getElementById('btn-toggle-pause').addEventListener('click', togglePause);
+
+        function togglePause() {
+            isRunning = !isRunning;
+            const btnText = isRunning ? 'Pausa Simulazione' : 'Riprendi Simulazione';
+            document.getElementById('lbl-pause').innerText = btnText;
+            document.getElementById('quick-pause').innerText = isRunning ? '⏸️ Pausa' : '▶️ Riprendi';
+            logMsg(isRunning ? 'Simulazione in pausa.' : 'Simulazione ripresa.');
+        }
+
+        document.getElementById('quick-photo').addEventListener('click', takePhoto);
+        document.getElementById('btn-photo').addEventListener('click', takePhoto);
+
+        document.getElementById('quick-clear').addEventListener('click', clearAll);
+        document.getElementById('btn-clear').addEventListener('click', clearAll);
+
+        // Scorciatoie da Tastiera
+        window.addEventListener('keydown', (e) => {
+            getAudioContext();
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const key = e.key.toLowerCase();
+            if (e.code === 'Space' || key === ' ') {
+                e.preventDefault();
+                togglePause();
+            } else if (key === 'f') {
+                addFish(10);
+            } else if (key === 's') {
+                addPredator();
+            } else if (key === 'p') {
+                takePhoto();
+            } else if (key === 'c') {
+                clearAll();
+            }
+        });
+
+        // Gestione Drawer Menu
+        const ham = document.getElementById('ham');
+        const controls = document.getElementById('controls');
+        const ov = document.getElementById('ov');
+
+        function toggleMenu() {
+            ham.classList.toggle('open');
+            controls.classList.toggle('open');
+            ov.classList.toggle('show');
+        }
+
+        ham.addEventListener('click', toggleMenu);
+        ov.addEventListener('click', toggleMenu);
+
+        logMsg(`Simulazione Banchi di Pesci Craig (1987) inizializzata con 10 pesci.`);
+        loop();
+    </script>
+</body>
+</html>

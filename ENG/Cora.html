@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cora (1951) — Conditioned Reflex Analyser</title>
+    <style>
+        :root {
+            --bg-color: #040a0e;
+            --panel-bg: rgba(6, 22, 30, 0.92);
+            --border-color: rgba(0, 243, 255, 0.35);
+            --text-main: #e0f7fc;
+            --text-muted: #74a3b0;
+            --font-main: 'Courier New', Courier, monospace;
+            --accent-cyan: #00f3ff;
+            --accent-lime: #39ff14;
+            --accent-amber: #ffbb00;
+            --accent-danger: #ff3355;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            touch-action: none;
+        }
+
+        canvas#arenaCanvas {
+            display: block;
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #ham {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 300;
+            width: 44px;
+            height: 44px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+        }
+        #ham span { width: 22px; height: 2px; background: var(--accent-cyan); transition: all 0.3s; }
+        #ham.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        #ham.open span:nth-child(2) { opacity: 0; }
+        #ham.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        #status-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            background: var(--panel-bg);
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(5px);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.15);
+        }
+
+        /* ── INTRO MODAL ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            background: rgba(2, 8, 12, 0.94);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .modal-overlay.visible { display: flex; opacity: 1; }
+
+        .modal-card {
+            max-width: 540px;
+            background: rgba(6, 24, 34, 0.96);
+            border: 2px solid var(--accent-cyan);
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.25);
+        }
+        .modal-card h2 {
+            font-size: 1.8rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 5px;
+        }
+        .modal-subtitle {
+            font-size: 0.88rem;
+            color: var(--accent-amber);
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+        .modal-desc {
+            font-size: 0.86rem;
+            line-height: 1.6;
+            color: var(--text-main);
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 11px;
+            margin-bottom: 8px;
+            background: rgba(0, 243, 255, 0.12);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            font-size: 0.82rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 5px;
+            transition: all 0.2s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn:hover, .btn:active { background: rgba(0, 243, 255, 0.3); border-color: var(--accent-cyan); }
+        .btn-main {
+            text-align: center;
+            justify-content: center;
+            padding: 14px;
+            font-weight: bold;
+            background: var(--accent-cyan);
+            color: #000;
+            border: none;
+            font-size: 0.88rem;
+        }
+        .btn-main:hover { background: #55f6ff; color: #000; }
+        .btn-amber { background: rgba(255, 187, 0, 0.15); border-color: rgba(255, 187, 0, 0.4); color: var(--accent-amber); }
+        .btn-amber:hover { background: rgba(255, 187, 0, 0.35); border-color: var(--accent-amber); }
+
+        .key-badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            color: var(--accent-cyan);
+        }
+
+        /* ── DRAWER & CONTROLS ── */
+        #controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: min(350px, 85vw);
+            z-index: 260;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 75px 20px 25px 20px;
+            display: none;
+            overflow-y: auto;
+            backdrop-filter: blur(8px);
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        }
+        #controls.open { display: block; }
+        #controls h1 {
+            font-size: 1.3rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .control-group { margin-bottom: 16px; }
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            margin-bottom: 5px;
+            color: var(--text-main);
+        }
+        .help-text { font-size: 0.68rem; color: var(--text-muted); line-height: 1.3; display: block; margin-top: 3px; }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-cyan);
+            height: 5px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        /* ── SYNAPSE MONITOR & LOG ── */
+        .meter-container {
+            margin-top: 15px;
+            margin-bottom: 15px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .meter-title { font-size: 0.72rem; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .meter-bar { height: 12px; background: rgba(255,255,255,0.08); border-radius: 3px; position: relative; overflow: hidden; }
+        .meter-fill { height: 100%; width: 0%; background: var(--accent-cyan); transition: width 0.2s, background-color 0.3s; }
+        .meter-threshold { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent-amber); }
+
+        #log-box {
+            height: 110px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            overflow-y: auto;
+            margin-top: 15px;
+            line-height: 1.4;
+        }
+        #log-box div { margin-bottom: 3px; }
+
+        .legend-text { font-size: 0.75rem; line-height: 1.5; color: var(--text-muted); margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 12px; }
+        .legend-text strong { color: var(--accent-cyan); }
+
+        #ov {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 250; display: none; backdrop-filter: blur(2px);
+        }
+        #ov.show { display: block; }
+    </style>
+</head>
+<body>
+
+    <canvas id="arenaCanvas"></canvas>
+
+    <div id="ham">
+        <span></span><span></span><span></span>
+    </div>
+
+    <div id="ov"></div>
+
+    <div id="status-badge">
+        STATE: <span id="sys-state" style="color:var(--accent-cyan); font-weight:bold;">UNCONDITIONED</span>
+    </div>
+
+    <!-- Intro Modal -->
+    <div id="intro-modal" class="modal-overlay visible">
+        <div class="modal-card">
+            <h2>Cora (1951)</h2>
+            <p class="modal-subtitle">"Conditioned Reflex Analyser & Machina Docilis"</p>
+            <p class="modal-desc">
+                In 1951 at the Burden Neurological Institute in Bristol, W. Grey Walter constructed <strong>Cora</strong> (Conditioned Reflex Analyser). Following his autonomous tortoises <em>Elmer & Elsie</em>, Walter added an analog capacitive memory circuit to simulate <strong>Pavlovian classical conditioning</strong>.<br><br>
+                Cora demonstrates how a machine can learn to associate a neutral stimulus (an <em>auditory tone</em>) with a physical impact (a <em>bump</em>). Once conditioned, Cora anticipates collision and turns away upon hearing the sound alone—proving that associative learning requires no digital microprocessors, only capacitive memory and feedback loops.
+            </p>
+            <button id="start-btn" class="btn btn-main" onclick="document.getElementById('intro-modal').classList.remove('visible'); document.getElementById('intro-modal').style.display='none';">Enter the Cybernetic Arena</button>
+        </div>
+    </div>
+
+    <!-- UI Panel / Drawer -->
+    <div id="controls">
+        <h1>Cora (1951)</h1>
+
+        <button id="btn-emit-tone" class="btn">
+            <span>Sound Tone (CS)</span>
+            <span class="key-badge">T</span>
+        </button>
+
+        <button id="btn-pair-trial" class="btn btn-amber">
+            <span>Pair Tone + Collision</span>
+            <span class="key-badge">P</span>
+        </button>
+
+        <button id="btn-add-obstacle" class="btn">
+            <span>Add Obstacle</span>
+            <span class="key-badge">S</span>
+        </button>
+
+        <button id="btn-reset-memory" class="btn">
+            <span>Reset Memory</span>
+            <span class="key-badge">R</span>
+        </button>
+
+        <button id="btn-clear-arena" class="btn">
+            <span>Clear Arena</span>
+            <span class="key-badge">Space</span>
+        </button>
+
+        <div class="meter-container">
+            <div class="meter-title">
+                <span>Capacitive Synapse ($C_{mem}$)</span>
+                <span id="txt-synapse-pct">0%</span>
+            </div>
+            <div class="meter-bar">
+                <div id="fill-synapse" class="meter-fill"></div>
+                <div id="line-threshold" class="meter-threshold" style="left: 60%;"></div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Acquisition Rate (Learning): <span id="val-acq" style="color:var(--accent-cyan)">0.25</span></label>
+            <input type="range" id="param-acq" min="0.05" max="0.50" step="0.05" value="0.25" oninput="params.acqRate = parseFloat(this.value); document.getElementById('val-acq').innerText = this.value;">
+            <span class="help-text">Synaptic charge increase per paired Tone + Collision trial.</span>
+        </div>
+
+        <div class="control-group">
+            <label>Extinction Rate (Forgetting): <span id="val-ext" style="color:var(--accent-cyan)">0.04</span></label>
+            <input type="range" id="param-ext" min="0.01" max="0.15" step="0.01" value="0.04" oninput="params.extRate = parseFloat(this.value); document.getElementById('val-ext').innerText = this.value;">
+            <span class="help-text">Memory decay rate when Tone sounds without collision.</span>
+        </div>
+
+        <div class="control-group">
+            <label>Conditioned Threshold: <span id="val-thresh" style="color:var(--accent-cyan)">60%</span></label>
+            <input type="range" id="param-thresh" min="30" max="90" step="5" value="60" oninput="params.threshold = parseInt(this.value); document.getElementById('val-thresh').innerText = this.value + '%'; document.getElementById('line-threshold').style.left = this.value + '%';">
+            <span class="help-text">Capacitive threshold required to trigger Conditioned Avoidance.</span>
+        </div>
+
+        <div id="log-box"></div>
+
+        <div class="legend-text">
+            <strong>EXPERIMENTAL GOAL:</strong><br>
+            1. Emit <strong>Tone [T]</strong>: Observe that Cora does not react.<br>
+            2. Allow Cora to <strong>Bump</strong> obstacles or click <strong>Pair Tone + Collision [P]</strong> 3-4 times.<br>
+            3. Observe the <strong>Synapse Gauge</strong> reaching the yellow threshold.<br>
+            4. Emit <strong>Tone [T]</strong> alone: Cora now turns away <em>before</em> touching obstacles!
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('arenaCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        let mouseX = width / 2;
+        let mouseY = height / 2;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            cora.x = Math.min(cora.x, width - 40);
+            cora.y = Math.min(cora.y, height - 40);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        // ── SIMULATION PARAMETERS & STATE ──
+        const params = {
+            acqRate: 0.25,
+            extRate: 0.04,
+            threshold: 60
+        };
+
+        let synapticCharge = 0.0; // 0.0 to 1.0
+        let isConditioned = false;
+
+        const soundWaves = [];
+        const obstacles = [];
+
+        function logMsg(msg) {
+            const box = document.getElementById('log-box');
+            const div = document.createElement('div');
+            div.innerText = `[${new Date().toLocaleTimeString().split(' ')[0]}] ${msg}`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // ── CORA AUTOMATON ──
+        const cora = {
+            x: width * 0.4,
+            y: height * 0.5,
+            radius: 22,
+            angle: 0,
+            speed: 1.8,
+            turnSpeed: 0,
+            state: 'SEARCHING', // SEARCHING, AVOIDING, CONDITIONED_AVOID
+            avoidTimer: 0
+        };
+
+        class Obstacle {
+            constructor(x, y, radius = 35) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+            }
+            draw() {
+                ctx.save();
+                ctx.fillStyle = 'rgba(6, 30, 40, 0.85)';
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner crosshair
+                ctx.strokeStyle = 'rgba(0, 243, 255, 0.3)';
+                ctx.beginPath();
+                ctx.moveTo(this.x - 8, this.y); ctx.lineTo(this.x + 8, this.y);
+                ctx.moveTo(this.x, this.y - 8); ctx.lineTo(this.x, this.y + 8);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        class SoundWave {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.r = 10;
+                this.maxR = 260;
+                this.alpha = 0.9;
+            }
+            update() {
+                this.r += 4.5;
+                this.alpha = Math.max(0, 1 - this.r / this.maxR);
+            }
+            draw() {
+                ctx.save();
+                ctx.strokeStyle = `rgba(0, 243, 255, ${this.alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // Initialize obstacles
+        obstacles.push(new Obstacle(width * 0.25, height * 0.3, 40));
+        obstacles.push(new Obstacle(width * 0.70, height * 0.4, 45));
+        obstacles.push(new Obstacle(width * 0.50, height * 0.75, 50));
+
+        // ── WEB AUDIO SYNTHESIS FOR TONE & BUMP ──
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) audioCtx = new AudioContextClass();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        // Sound for [T] (CS - Auditory Whistle Tone): Smooth 520 Hz tone with soft decay
+        function playToneSound() {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(520, now);
+                osc.frequency.exponentialRampToValueAtTime(480, now + 0.22);
+
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } catch(e) {}
+        }
+
+        // Sound for [P] (Paired Trial - Tone + Bumper Thump): Combined tone and low impact
+        function playPairSound() {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+
+                const now = ctx.currentTime;
+                
+                // 1. High Tone component
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'triangle';
+                osc1.frequency.setValueAtTime(580, now);
+                osc1.frequency.linearRampToValueAtTime(640, now + 0.15);
+
+                gain1.gain.setValueAtTime(0.001, now);
+                gain1.gain.linearRampToValueAtTime(0.14, now + 0.02);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.26);
+
+                // 2. Low Bumper Thump component
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(160, now);
+                osc2.frequency.exponentialRampToValueAtTime(50, now + 0.12);
+
+                gain2.gain.setValueAtTime(0.001, now);
+                gain2.gain.linearRampToValueAtTime(0.18, now + 0.01);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start(now);
+                osc2.stop(now + 0.15);
+            } catch(e) {}
+        }
+
+        // Sound for natural bump impact
+        function playBumpSound() {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.12);
+            } catch(e) {}
+        }
+
+        // ── STIMULATION & CONDITIONING LOGIC ──
+        function emitTone() {
+            playToneSound();
+            soundWaves.push(new SoundWave(cora.x, cora.y));
+            
+            // Check if Cora is conditioned or learning
+            const pct = Math.round(synapticCharge * 100);
+            if (synapticCharge * 100 >= params.threshold) {
+                logMsg(`Tone Sounded (CS) -> CONDITIONED REFLEX ACTIVE! Cora avoids danger.`);
+                cora.state = 'CONDITIONED_AVOID';
+                cora.avoidTimer = 45;
+                cora.turnSpeed = (Math.random() > 0.5 ? 1 : -1) * 0.12;
+            } else {
+                // Extinction / Decay on unreinforced tone
+                synapticCharge = Math.max(0, synapticCharge - params.extRate);
+                updateSynapseUI();
+                logMsg(`Tone Sounded (CS) -> Unconditioned (${pct}% charge). No response.`);
+            }
+        }
+
+        function pairTrial() {
+            playPairSound();
+            soundWaves.push(new SoundWave(cora.x, cora.y));
+            synapticCharge = Math.min(1.0, synapticCharge + params.acqRate);
+            updateSynapseUI();
+            const pct = Math.round(synapticCharge * 100);
+
+            cora.state = 'AVOIDING';
+            cora.avoidTimer = 50;
+            cora.turnSpeed = (Math.random() > 0.5 ? 1 : -1) * 0.14;
+
+            if (pct >= params.threshold && !isConditioned) {
+                isConditioned = true;
+                logMsg(`PAIRED TRIAL (Tone + Bump) -> CONDITIONED REFLEX ACQUIRED! (${pct}%)`);
+            } else {
+                logMsg(`PAIRED TRIAL (Tone + Bump) -> Memory charged to ${pct}%`);
+            }
+        }
+
+        function triggerBump() {
+            playBumpSound();
+            // Unconditioned Collision
+            synapticCharge = Math.min(1.0, synapticCharge + params.acqRate * 0.7);
+            updateSynapseUI();
+            const pct = Math.round(synapticCharge * 100);
+
+            cora.state = 'AVOIDING';
+            cora.avoidTimer = 50;
+            cora.turnSpeed = (Math.random() > 0.5 ? 1 : -1) * 0.14;
+
+            logMsg(`Collision Bumper Triggered! (UCS). Memory charged to ${pct}%`);
+        }
+
+        function resetMemory() {
+            synapticCharge = 0.0;
+            isConditioned = false;
+            updateSynapseUI();
+            logMsg(`Capacitive Memory reset to 0%.`);
+        }
+
+        function updateSynapseUI() {
+            const pct = Math.round(synapticCharge * 100);
+            document.getElementById('txt-synapse-pct').innerText = pct + '%';
+            
+            const fill = document.getElementById('fill-synapse');
+            fill.style.width = pct + '%';
+
+            const badge = document.getElementById('sys-state');
+
+            if (pct >= params.threshold) {
+                fill.style.backgroundColor = '#39ff14';
+                badge.innerText = 'CONDITIONED (REFLEX ACTIVE)';
+                badge.style.color = '#39ff14';
+            } else if (pct > 15) {
+                fill.style.backgroundColor = '#ffbb00';
+                badge.innerText = 'LEARNING / ACQUISITION';
+                badge.style.color = '#ffbb00';
+            } else {
+                fill.style.backgroundColor = '#00f3ff';
+                badge.innerText = 'UNCONDITIONED';
+                badge.style.color = '#00f3ff';
+            }
+        }
+
+        // ── UPDATE & SIMULATION LOOP ──
+        function update() {
+            // Update soundwaves
+            for (let i = soundWaves.length - 1; i >= 0; i--) {
+                soundWaves[i].update();
+                if (soundWaves[i].alpha <= 0) soundWaves.splice(i, 1);
+            }
+
+            // Cora Movement
+            if (cora.avoidTimer > 0) {
+                cora.avoidTimer--;
+                cora.angle += cora.turnSpeed;
+                cora.speed = -1.2; // Reverse while turning
+            } else {
+                cora.state = 'SEARCHING';
+                cora.speed = 1.8;
+                cora.angle += (Math.random() - 0.5) * 0.05; // Natural wandering
+            }
+
+            cora.x += Math.cos(cora.angle) * cora.speed;
+            cora.y += Math.sin(cora.angle) * cora.speed;
+
+            // Screen boundary check
+            const margin = 35;
+            if (cora.x < margin || cora.x > width - margin || cora.y < margin || cora.y > height - margin) {
+                cora.angle += Math.PI * 0.75;
+                cora.x = Math.max(margin, Math.min(width - margin, cora.x));
+                cora.y = Math.max(margin, Math.min(height - margin, cora.y));
+            }
+
+            // Collision check with obstacles
+            const bumperX = cora.x + Math.cos(cora.angle) * (cora.radius + 6);
+            const bumperY = cora.y + Math.sin(cora.angle) * (cora.radius + 6);
+
+            obstacles.forEach(obs => {
+                const dist = Math.hypot(bumperX - obs.x, bumperY - obs.y);
+                if (dist < obs.radius + 6 && cora.avoidTimer <= 0) {
+                    triggerBump();
+                }
+            });
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(4, 10, 14, 0.35)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw soundwaves
+            soundWaves.forEach(sw => sw.draw());
+
+            // Draw obstacles
+            obstacles.forEach(obs => obs.draw());
+
+            // ── DRAW ELEPHANT AUTOMATON (CORA) ──
+            ctx.save();
+            ctx.translate(cora.x, cora.y);
+            ctx.rotate(cora.angle);
+
+            const isAvoid = cora.state === 'CONDITIONED_AVOID';
+            const isColl = cora.state === 'AVOIDING';
+            const strokeCol = isAvoid ? '#39ff14' : (isColl ? '#ff3355' : '#00f3ff');
+
+            // 1. Elephant Ears (Flexible Ears)
+            ctx.fillStyle = 'rgba(10, 36, 48, 0.9)';
+            ctx.strokeStyle = strokeCol;
+            ctx.lineWidth = 1.8;
+
+            // Left ear
+            ctx.beginPath();
+            ctx.ellipse(-6, -18, 11, 7, -0.4, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+
+            // Right ear
+            ctx.beginPath();
+            ctx.ellipse(-6, 18, 11, 7, 0.4, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+
+            // 2. Main Body (Little Elephant Chassis)
+            ctx.fillStyle = 'rgba(6, 26, 36, 0.95)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, cora.radius + 2, cora.radius * 0.78, 0, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+
+            // 3. Cybernetic Tusks (Golden Tusks)
+            ctx.strokeStyle = '#ffbb00';
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.moveTo(10, -9); ctx.quadraticCurveTo(18, -12, 21, -8);
+            ctx.moveTo(10, 9); ctx.quadraticCurveTo(18, 12, 21, 8);
+            ctx.stroke();
+
+            // 4. Curved Trunk (Proboscis with sensor tip)
+            ctx.strokeStyle = strokeCol;
+            ctx.lineWidth = 3.5;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(14, 0);
+            ctx.quadraticCurveTo(24, 0, 30, -5);
+            ctx.stroke();
+
+            // Tip of Trunk (Microphone / Bumper Contact Sensor)
+            ctx.fillStyle = '#00f3ff';
+            ctx.beginPath();
+            ctx.arc(30, -5, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 5. Cute Eyes
+            ctx.fillStyle = '#00f3ff';
+            ctx.beginPath(); ctx.arc(8, -7, 2.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(8, 7, 2.5, 0, Math.PI * 2); ctx.fill();
+
+            // 6. Synaptic Memory Bulb Indicator (Cmem Charge on back)
+            const pct = synapticCharge;
+            ctx.fillStyle = `rgba(${Math.round(255*pct)}, ${Math.round(243*(1-pct) + 255*pct)}, ${Math.round(255*(1-pct))}, 0.95)`;
+            ctx.beginPath();
+            ctx.arc(-10, 0, 5.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // ── USER INTERACTION ──
+        canvas.addEventListener('pointerdown', (e) => {
+            getAudioContext();
+            if (e.target !== canvas) return;
+            obstacles.push(new Obstacle(e.clientX, e.clientY, 35));
+            logMsg(`Obstacle added at (${Math.round(e.clientX)}, ${Math.round(e.clientY)})`);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            getAudioContext();
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const key = e.key.toLowerCase();
+            if (key === 't') {
+                emitTone();
+            } else if (key === 'p') {
+                pairTrial();
+            } else if (key === 's') {
+                obstacles.push(new Obstacle(mouseX, mouseY, 35));
+                logMsg(`Obstacle added via keyboard.`);
+            } else if (key === 'r') {
+                resetMemory();
+            } else if (e.code === 'Space' || key === ' ') {
+                e.preventDefault();
+                obstacles.length = 0;
+                logMsg(`Arena cleared.`);
+            }
+        });
+
+        // UI Drawer Binding
+        const ham = document.getElementById('ham');
+        const controls = document.getElementById('controls');
+        const ov = document.getElementById('ov');
+
+        function toggleMenu() {
+            ham.classList.toggle('open');
+            controls.classList.toggle('open');
+            ov.classList.toggle('show');
+        }
+
+        ham.addEventListener('click', toggleMenu);
+        ov.addEventListener('click', toggleMenu);
+
+        document.getElementById('btn-emit-tone').addEventListener('click', emitTone);
+        document.getElementById('btn-pair-trial').addEventListener('click', pairTrial);
+        document.getElementById('btn-add-obstacle').addEventListener('click', () => {
+            obstacles.push(new Obstacle(width * 0.5, height * 0.5, 35));
+            logMsg(`Obstacle added.`);
+        });
+        document.getElementById('btn-reset-memory').addEventListener('click', resetMemory);
+        document.getElementById('btn-clear-arena').addEventListener('click', () => {
+            obstacles.length = 0;
+            logMsg(`Arena cleared.`);
+        });
+
+        logMsg(`Cora (1951) simulation initialized.`);
+        updateSynapseUI();
+        loop();
+    </script>
+</body>
+</html>

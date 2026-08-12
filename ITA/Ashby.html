@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Homeostato Generativo - Ashby</title>
+    <style>
+        :root {
+            --bg-color: #030a08;
+            --panel-bg: rgba(5, 15, 12, 0.85);
+            --border-color: rgba(50, 150, 100, 0.5);
+            --text-main: #f0f5f2;
+            --text-alert: #ff7777;
+            --font-main: 'Courier New', Courier, monospace;
+            --amber: #44cc88;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none; /* No scroll while interacting with canvas */
+        }
+
+        /* ── MOBILE MENU & OVERLAY ── */
+        #ham {
+            position: fixed; top: 14px; left: 14px; z-index: 200; width: 44px; height: 44px;
+            border-radius: 5px; background: rgba(5, 15, 12, 0.9); border: 1px solid var(--border-color);
+            cursor: pointer; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 5px; transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #ham:hover { background: rgba(50, 150, 100, 0.2); }
+        #ham .bar { width: 18px; height: 1.5px; background: var(--amber); border-radius: 1px; transition: all 0.28s ease; }
+        #ham.open .bar:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+        #ham.open .bar:nth-child(2) { opacity: 0; transform: scaleX(0); }
+        #ham.open .bar:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+        #ov {
+            position: fixed; inset: 0; z-index: 150; background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity 0.28s;
+        }
+        #ov.show { opacity: 1; pointer-events: all; }
+
+        /* ── PANELS ── */
+        .panel {
+            position: absolute;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(5px);
+            z-index: 10;
+        }
+
+        /* Controls Panel converted to Drawer */
+        #controls {
+            position: fixed; top: 0; left: 0; height: 100%; width: min(320px, 90vw); z-index: 160;
+            border-radius: 0; border-right: 1px solid var(--border-color); border-top: none; border-bottom: none; border-left: none;
+            transform: translateX(-100%); transition: transform 0.32s cubic-bezier(0.4,0,0.2,1);
+            display: flex; flex-direction: column; overflow-y: auto;
+            padding: 70px 18px 36px 18px; /* Hamburger menu spaace */
+            scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;
+        }
+        #controls.open { transform: translateX(0); }
+        #controls::-webkit-scrollbar { width: 4px; }
+        #controls::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+
+        #dashboard { top: 20px; right: 20px; width: 250px; border-radius: 8px; padding: 15px; max-height: 95vh; overflow-y: auto; }
+
+        h1, h2 {
+            margin: 0 0 15px 0;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            color: #ffffff;
+        }
+
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 5px; }
+        
+        .help-text {
+            font-size: 0.7rem;
+            color: #b8ccbf;
+            margin-top: -3px;
+            margin-bottom: 8px;
+            line-height: 1.2;
+            display: block;
+        }
+
+        input[type="range"] { width: 100%; accent-color: var(--amber); cursor: pointer; }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background: rgba(50, 150, 100, 0.2);
+            border: 1px solid var(--border-color);
+            color: white;
+            font-family: var(--font-main);
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+            border-radius: 4px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button:hover, button:active { background: rgba(50, 150, 100, 0.5); }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            width: 100%;
+            text-align: center;
+            box-sizing: border-box;
+            transition: all 0.3s;
+        }
+
+        .stable { background: rgba(50, 200, 100, 0.2); color: #88ffbb; border: 1px solid #88ffbb; }
+        .mutating { background: rgba(255, 50, 50, 0.2); color: #ff8888; border: 1px solid #ff8888; }
+        .adapting { background: rgba(255, 200, 50, 0.2); color: #ffdd88; border: 1px solid #ffdd88; }
+
+        #timer-display {
+            font-size: 0.85rem;
+            text-align: center;
+            margin-bottom: 15px;
+            color: #d0e0d8;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .bar-container {
+            width: 100%; height: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+            margin-top: 3px;
+        }
+
+        .bar-fill {
+            height: 100%; width: 0%;
+            background: #44cc88;
+            transition: width 0.1s, background-color 0.3s;
+            position: absolute; left: 50%;
+        }
+
+        .bar-threshold {
+            position: absolute; top: 0;
+            height: 100%; width: 2px;
+            background: rgba(255,0,0,0.8);
+            z-index: 2;
+        }
+
+        #instructions { font-size: 0.8rem; color: #d0e0d8; margin-top: 15px; line-height: 1.4; }
+        #about {
+            margin-top: 20px; padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.8rem; color: #d0e0d8; line-height: 1.4;
+        }
+
+        /* Mobile Responsive Dashboard */
+        @media (max-width: 768px) {
+            #dashboard {
+                top: 14px; right: 14px; width: 170px; padding: 10px; font-size: 0.8rem;
+            }
+            #dashboard h2 { font-size: 0.9rem; margin-bottom: 10px; }
+            .status-badge { font-size: 0.75rem; padding: 4px 6px; margin-bottom: 10px; }
+            #timer-display { font-size: 0.75rem; margin-bottom: 10px; }
+            .cell-stat { margin-bottom: 6px; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+
+    <button id="ham" aria-label="Menu">
+        <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+    </button>
+    <div id="ov"></div>
+
+    <div id="controls" class="panel">
+        <h1 style="margin-top: -10px;">Ashby</h1>
+        
+        <div class="control-group">
+            <label>Soglia Critica <span id="val-threshold">100</span></label>
+            <span class="help-text">Valore di stress che innesca la mutazione strutturale. Valori più bassi producono una maggiore instabilità del sistema.</span>
+            <input type="range" id="param-threshold" min="20" max="180" value="100">
+        </div>
+        
+        <div class="control-group">
+            <label>Recupero Naturale <span id="val-damping">0.10</span></label>
+            <span class="help-text">Capacità innata di dissipare lo stress nel tempo.</span>
+            <input type="range" id="param-damping" min="0.01" max="0.3" step="0.01" value="0.10">
+        </div>
+
+        <div class="control-group">
+            <label>Sensibilità Amb. <span id="val-sensitivity">15</span></label>
+            <span class="help-text">Intensità della reazione ai disturbi esterni (mouse/touch).</span>
+            <input type="range" id="param-sensitivity" min="1" max="50" value="15">
+        </div>
+
+        <button id="btn-mutate">Forza Caos</button>
+        <button id="btn-homeostasis" style="margin-top: 10px; background: rgba(100, 200, 255, 0.15); border-color: rgba(100, 200, 255, 0.3); color: #aaddff;">Forza Omeostasi</button>
+
+        <div id="instructions">
+            <b>Interazione:</b> Clicca/tocca e tieni premuto per generare una zona di caos crescente. Trascinala contro le cellule per iniettare stress ambientale.
+        </div>
+
+        <div id="about">
+            <b>L'Homeostato di Ashby:</b><br>
+            Ispirato al lavoro di W. Ross Ashby del 1948, questo sistema simula l'<i>ultrastabilità</i>. Quattro cellule interconnesse reagiscono all'ambiente. Se lo stress supera la soglia, riorganizzano i loro legami fino a trovare l'equilibrio. Maggiori info e codice: <a href="https://github.com/davideriboli/Ashby" style="color:var(--amber);text-decoration:none;word-break:break-all">https://github.com/davideriboli/Ashby</a>.
+        </div>
+    </div>
+
+    <div id="dashboard" class="panel">
+        <h2>Monitoraggio</h2>
+        <div id="system-status" class="status-badge stable">Stato: Ultrastabile</div>
+        <div id="timer-display">Sistema a riposo</div>
+        <div id="cells-container"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const statusBadge = document.getElementById('system-status');
+        const cellsContainer = document.getElementById('cells-container');
+        const thresholdInput = document.getElementById('param-threshold');
+        const dampingInput = document.getElementById('param-damping');
+        const sensitivityInput = document.getElementById('param-sensitivity');
+        
+        let params = {
+            threshold: parseInt(thresholdInput.value),
+            damping: parseFloat(dampingInput.value),
+            sensitivity: parseInt(sensitivityInput.value)
+        };
+
+        let width, height;
+        const NUM_CELLS = 4;
+        let cells = [];
+        let weightMatrix = [];
+        let systemState = 'stable';
+        let mutationTimer = 0;
+        let time = 0;
+        let stableFrames = 0;
+        let timerStart = Date.now();
+        let isTimerRunning = false;
+        let lastRecoveryDuration = 0;
+
+        const dt = 0.16; // Time step per l'integrazione differenziale
+        let chaosRadius = 0;
+        const MAX_CHAOS_RADIUS = 350;
+
+        // ── DRAWER LOGIC ──
+        const ham = document.getElementById('ham');
+        const controls = document.getElementById('controls');
+        const ov = document.getElementById('ov');
+        const toggleMenu = () => {
+            ham.classList.toggle('open');
+            controls.classList.toggle('open');
+            ov.classList.toggle('show');
+        };
+        ham.addEventListener('click', toggleMenu);
+        // Firefox on mobile requires explicit touchend binding to the overlay for dismissing the drawer
+        ov.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            toggleMenu();
+        }, {passive: false});
+        ov.addEventListener('click', toggleMenu);
+
+        // ── CORE LOGIC ──
+        function initCells() {
+            cellsContainer.innerHTML = '';
+            cells = [];
+            for(let i = 0; i < NUM_CELLS; i++) {
+                cells.push({ id: i, x: 0, y: 0, baseX: 0, baseY: 0, value: 0, velocity: 0, phase: Math.random() * Math.PI * 2 });
+                const statHTML = `
+                    <div class="cell-stat" id="stat-cell-${i}">
+                        <div style="font-size:0.8rem; margin-top:8px">Cellula ${i+1}: <span id="val-cell-${i}">0</span></div>
+                        <div class="bar-container">
+                            <div class="bar-fill" id="bar-cell-${i}"></div>
+                            <div class="bar-threshold" id="thresh-left-${i}"></div>
+                            <div class="bar-threshold" id="thresh-right-${i}"></div>
+                        </div>
+                    </div>`;
+                cellsContainer.insertAdjacentHTML('beforeend', statHTML);
+            }
+            positionCells();
+            mutateGenetics(); // Inizializzazione globale
+        }
+
+        function positionCells() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.min(width, height) * 0.25;
+            for(let i = 0; i < NUM_CELLS; i++) {
+                const angle = (i / NUM_CELLS) * Math.PI * 2 - Math.PI / 4;
+                cells[i].baseX = centerX + Math.cos(angle) * radius;
+                cells[i].baseY = centerY + Math.sin(angle) * radius;
+            }
+            updateThresholdUI();
+        }
+
+        function changeState(newState) {
+            if (systemState === newState) return;
+            if (systemState === 'stable' && newState !== 'stable') {
+                timerStart = Date.now();
+                isTimerRunning = true;
+            } else if (systemState !== 'stable' && newState === 'stable') {
+                lastRecoveryDuration = (Date.now() - timerStart) / 1000;
+                isTimerRunning = false;
+            }
+            systemState = newState;
+            updateStatusUI();
+        }
+
+        function mutateGenetics() {
+            weightMatrix = [];
+            for(let i = 0; i < NUM_CELLS; i++) {
+                weightMatrix[i] = [];
+                for(let j = 0; j < NUM_CELLS; j++) {
+                    weightMatrix[i][j] = (Math.random() - 0.5) * 0.35;
+                }
+                weightMatrix[i][i] = -0.1; // Stabilità base innata
+            }
+            mutationTimer = 30; 
+            changeState('mutating');
+        }
+
+        function mutateUnit(index) {
+            for(let j = 0; j < NUM_CELLS; j++) {
+                if (index !== j) {
+                    weightMatrix[index][j] = (Math.random() - 0.5) * 0.35;
+                }
+            }
+            weightMatrix[index][index] = -0.1;
+            mutationTimer = 10;
+            changeState('mutating');
+        }
+
+        // ── LISTENERS ──
+        // Changed to purely 'input' to correctly map on both browsers
+        thresholdInput.addEventListener('input', (e) => {
+            params.threshold = parseInt(e.target.value);
+            document.getElementById('val-threshold').textContent = params.threshold;
+            updateThresholdUI();
+        });
+        
+        dampingInput.addEventListener('input', (e) => {
+            params.damping = parseFloat(e.target.value);
+            document.getElementById('val-damping').textContent = params.damping.toFixed(2);
+        });
+
+        sensitivityInput.addEventListener('input', (e) => {
+            params.sensitivity = parseInt(e.target.value);
+            document.getElementById('val-sensitivity').textContent = params.sensitivity;
+        });
+
+        document.getElementById('btn-mutate').addEventListener('click', () => {
+            cells.forEach(c => c.velocity += (Math.random() > 0.5 ? 1 : -1) * 200);
+            mutateGenetics();
+        });
+        document.getElementById('btn-mutate').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            cells.forEach(c => c.velocity += (Math.random() > 0.5 ? 1 : -1) * 200);
+            mutateGenetics();
+        });
+
+        document.getElementById('btn-homeostasis').addEventListener('click', () => {
+            for(let i = 0; i < NUM_CELLS; i++) {
+                for(let j = 0; j < NUM_CELLS; j++) { weightMatrix[i][j] *= 0.1; }
+                weightMatrix[i][i] = -0.5; // Forte auto-regolazione indotta
+            }
+            cells.forEach(c => { c.value *= 0.05; c.velocity *= 0.05; });
+            mutationTimer = 0;
+            changeState('adapting');
+        });
+        document.getElementById('btn-homeostasis').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            for(let i = 0; i < NUM_CELLS; i++) {
+                for(let j = 0; j < NUM_CELLS; j++) { weightMatrix[i][j] *= 0.1; }
+                weightMatrix[i][i] = -0.5; // Forte auto-regolazione indotta
+            }
+            cells.forEach(c => { c.value *= 0.05; c.velocity *= 0.05; });
+            mutationTimer = 0;
+            changeState('adapting');
+        });
+
+        // ── INPUT MOUSE & TOUCH (Ottimizzati) ──
+        let mouseX = -1000, mouseY = -1000, isDown = false;
+        
+        const updateMouse = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            mouseX = clientX - rect.left;
+            mouseY = clientY - rect.top;
+        };
+
+        // Mouse Events
+        canvas.addEventListener('mousedown', (e) => { isDown = true; updateMouse(e); });
+        canvas.addEventListener('mousemove', (e) => { if(isDown) updateMouse(e); });
+        window.addEventListener('mouseup', () => { isDown = false; });
+
+        // Touch Events
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isDown = true; updateMouse(e); }, {passive: false});
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); if(isDown) updateMouse(e); }, {passive: false});
+        // Modifica: rimozione di preventDefault in globale su document/window touchend, aggiunta ad-hoc
+        canvas.addEventListener('touchend', (e) => { e.preventDefault(); isDown = false; }, {passive: false});
+
+
+        // ── UPDATE & DRAW ──
+        function updateSystem() {
+            time += dt;
+            let maxStress = 0, maxVelocity = 0;
+            let cellsToMutate = [];
+
+            if (isDown) {
+                chaosRadius = Math.min(chaosRadius + 3, MAX_CHAOS_RADIUS);
+            } else {
+                chaosRadius = Math.max(chaosRadius - 15, 0);
+                if (chaosRadius === 0) mouseX = -1000;
+            }
+
+            let externalForces = new Array(NUM_CELLS).fill(0);
+            if (chaosRadius > 0 && mouseX !== -1000) {
+                cells.forEach(cell => {
+                    const dist = Math.sqrt(Math.pow(mouseX - cell.x, 2) + Math.pow(mouseY - cell.y, 2));
+                    if (dist < chaosRadius) {
+                        const intensity = (chaosRadius - dist) / chaosRadius;
+                        const chaosFactor = (chaosRadius / 100); 
+                        const polarity = (cell.id % 2 === 0) ? 1 : -1;
+                        externalForces[cell.id] = polarity * intensity * params.sensitivity * chaosFactor * 25; 
+                    }
+                });
+            }
+
+            let derivatives = new Array(NUM_CELLS).fill(0);
+            for(let i = 0; i < NUM_CELLS; i++) {
+                for(let j = 0; j < NUM_CELLS; j++) {
+                    derivatives[i] += weightMatrix[i][j] * cells[j].value;
+                }
+            }
+
+            for(let i = 0; i < NUM_CELLS; i++) {
+                let cell = cells[i];
+                let acceleration = derivatives[i] + externalForces[i];
+                let friction = (params.damping * 5.0) * cell.velocity; 
+                
+                cell.velocity += (acceleration - friction) * dt;
+                cell.value += cell.velocity * dt;
+                
+                if (cell.value > 500) cell.value = 500;
+                if (cell.value < -500) cell.value = -500;
+                
+                const stressFloat = Math.abs(cell.value) * 0.1;
+                cell.x = cell.baseX + Math.sin(time + cell.phase) * 10 + (Math.random() - 0.5) * stressFloat;
+                cell.y = cell.baseY + Math.cos(time + cell.phase) * 10 + (Math.random() - 0.5) * stressFloat;
+                
+                const currentStress = Math.abs(cell.value);
+                if (currentStress > maxStress) maxStress = currentStress;
+                if (Math.abs(cell.velocity) > maxVelocity) maxVelocity = Math.abs(cell.velocity);
+                
+                if (currentStress >= params.threshold) {
+                    cellsToMutate.push(i);
+                }
+                
+                updateCellUI(i, cell.value);
+            }
+
+            if (mutationTimer > 0) {
+                mutationTimer--;
+                stableFrames = 0;
+            } else {
+                if (cellsToMutate.length > 0) {
+                    cellsToMutate.forEach(idx => mutateUnit(idx));
+                    stableFrames = 0;
+                } else {
+                    let isQuiet = (maxStress <= params.threshold * 0.25 && maxVelocity <= params.threshold * 0.05);
+                    if (isQuiet) {
+                        stableFrames++;
+                        if (stableFrames > 40 && systemState !== 'stable') changeState('stable');
+                    } else {
+                        stableFrames = 0;
+                        if (systemState !== 'adapting' && systemState !== 'mutating') changeState('adapting');
+                    }
+                }
+            }
+        }
+
+        function updateStatusUI() {
+            statusBadge.className = 'status-badge';
+            if (systemState === 'stable') { statusBadge.classList.add('stable'); statusBadge.textContent = 'Stato: Ultrastabile'; }
+            else if (systemState === 'adapting') { statusBadge.classList.add('adapting'); statusBadge.textContent = 'Stato: In adattamento...'; }
+            else if (systemState === 'mutating') { statusBadge.classList.add('mutating'); statusBadge.textContent = 'Stato: MUTAZIONE!'; }
+        }
+
+        function updateTimerUI() {
+            const timerEl = document.getElementById('timer-display');
+            if (isTimerRunning) timerEl.innerHTML = `Ricerca equilibrio: <span style="color: #ffcc44">${((Date.now() - timerStart) / 1000).toFixed(1)}s</span>`;
+            else timerEl.innerHTML = lastRecoveryDuration > 0 ? `Equilibrio in: <span style="color: #44cc88">${lastRecoveryDuration.toFixed(1)}s</span>` : `Sistema a riposo`;
+        }
+
+        function updateCellUI(index, value) {
+            document.getElementById(`val-cell-${index}`).textContent = value.toFixed(1);
+            const bar = document.getElementById(`bar-cell-${index}`);
+            let percentage = Math.min((Math.abs(value) / 200) * 100, 100);
+            bar.style.width = `${percentage}%`;
+            bar.style.transform = value >= 0 ? 'translateX(0)' : 'translateX(-100%)';
+            const stressRatio = Math.abs(value) / params.threshold;
+            bar.style.backgroundColor = stressRatio > 1 ? '#ff5555' : (stressRatio > 0.7 ? '#ffcc44' : '#44cc88');
+        }
+
+        function updateThresholdUI() {
+            for(let i=0; i<NUM_CELLS; i++) {
+                const percent = (params.threshold / 200) * 50;
+                document.getElementById(`thresh-left-${i}`).style.left = `${50 - percent}%`;
+                document.getElementById(`thresh-right-${i}`).style.left = `${50 + percent}%`;
+            }
+        }
+
+        function drawSystem() {
+            ctx.fillStyle = 'rgba(3, 10, 8, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+            ctx.globalCompositeOperation = 'lighter';
+
+            if (chaosRadius > 0 && mouseX !== -1000) {
+                const chaosIntensity = chaosRadius / MAX_CHAOS_RADIUS;
+                const r = 255;
+                const g = Math.floor(50 - chaosIntensity * 50);
+                const b = Math.floor(50 - chaosIntensity * 50);
+                
+                const gradient = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, chaosRadius);
+                gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${0.1 + chaosIntensity * 0.4})`);
+                gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+                
+                ctx.beginPath();
+                ctx.arc(mouseX, mouseY, chaosRadius, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+            }
+
+            for(let i = 0; i < NUM_CELLS; i++) {
+                for(let j = 0; j < NUM_CELLS; j++) {
+                    if (i === j) continue;
+                    const weight = weightMatrix[i][j];
+                    const strength = Math.abs(weight) * 3;
+                    if (strength < 0.01) continue;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(cells[i].x, cells[i].y);
+                    const dist = Math.sqrt(Math.pow(cells[j].x - cells[i].x, 2) + Math.pow(cells[j].y - cells[i].y, 2));
+                    const cpX = (cells[i].x + cells[j].x) / 2 - Math.sin(time * 2 + i) * dist * 0.1;
+                    const cpY = (cells[i].y + cells[j].y) / 2 + Math.cos(time * 2 + j) * dist * 0.1;
+                    ctx.quadraticCurveTo(cpX, cpY, cells[j].x, cells[j].y);
+                    
+                    const energyFlow = Math.min(Math.abs(cells[i].value * weight) * 0.05, 1);
+                    ctx.strokeStyle = weight > 0 ? `rgba(100, 255, 150, ${0.1 + strength + energyFlow})` : `rgba(100, 150, 255, ${0.1 + strength + energyFlow})`;
+                    ctx.lineWidth = 0.5 + strength * 2;
+                    ctx.stroke();
+                }
+            }
+
+            for(let i = 0; i < NUM_CELLS; i++) {
+                const cell = cells[i];
+                const stressRatio = Math.min(Math.abs(cell.value) / params.threshold, 1.2);
+                const radius = 22 + (stressRatio * 15);
+                const r = Math.floor(50 + (stressRatio * 200)), g = Math.floor(200 - (stressRatio * 100)), b = Math.floor(150 - (stressRatio * 150));
+                
+                const gradient = ctx.createRadialGradient(cell.x, cell.y, radius * 0.1, cell.x, cell.y, radius * 1.5);
+                gradient.addColorStop(0, `rgba(255, 255, 255, 0.8)`);
+                gradient.addColorStop(0.2, `rgba(${r}, ${g}, ${b}, 0.6)`);
+                gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+                
+                ctx.beginPath();
+                ctx.arc(cell.x, cell.y, radius * 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(cell.x, cell.y, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + stressRatio * 0.4})`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        function loop() { updateSystem(); updateTimerUI(); drawSystem(); requestAnimationFrame(loop); }
+        window.addEventListener('resize', positionCells);
+        initCells();
+        loop();
+    </script>
+</body>
+</html>

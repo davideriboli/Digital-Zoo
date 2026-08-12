@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Langton (1986) — Formica Cibernetica Emergente</title>
+    <style>
+        :root {
+            --bg-color: #040a0e;
+            --panel-bg: rgba(6, 22, 30, 0.92);
+            --border-color: rgba(0, 243, 255, 0.35);
+            --text-main: #e0f7fc;
+            --text-muted: #74a3b0;
+            --font-main: 'Courier New', Courier, monospace;
+            --accent-cyan: #00f3ff;
+            --accent-lime: #39ff14;
+            --accent-amber: #ffbb00;
+            --accent-danger: #ff3355;
+            --accent-magenta: #ff007f;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            touch-action: none;
+        }
+
+        canvas#gridCanvas {
+            display: block;
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            cursor: pointer;
+        }
+
+        #ham {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 300;
+            width: 44px;
+            height: 44px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+        }
+        #ham span { width: 22px; height: 2px; background: var(--accent-cyan); transition: all 0.3s; }
+        #ham.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        #ham.open span:nth-child(2) { opacity: 0; }
+        #ham.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        #status-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            background: var(--panel-bg);
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(5px);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.15);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* ── INTRO MODAL ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            background: rgba(2, 8, 12, 0.94);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .modal-overlay.visible { display: flex; opacity: 1; }
+
+        .modal-card {
+            max-width: 540px;
+            background: rgba(6, 24, 34, 0.96);
+            border: 2px solid var(--accent-cyan);
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.25);
+        }
+        .modal-card h2 {
+            font-size: 1.8rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 5px;
+        }
+        .modal-subtitle {
+            font-size: 0.88rem;
+            color: var(--accent-amber);
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+        .modal-desc {
+            font-size: 0.86rem;
+            line-height: 1.6;
+            color: var(--text-main);
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 11px;
+            margin-bottom: 8px;
+            background: rgba(0, 243, 255, 0.12);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            font-size: 0.82rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 5px;
+            transition: all 0.2s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn:hover, .btn:active { background: rgba(0, 243, 255, 0.3); border-color: var(--accent-cyan); }
+        .btn-main {
+            text-align: center;
+            justify-content: center;
+            padding: 14px;
+            font-weight: bold;
+            background: var(--accent-cyan);
+            color: #000;
+            border: none;
+            font-size: 0.88rem;
+        }
+        .btn-main:hover { background: #55f6ff; color: #000; }
+        .btn-amber { background: rgba(255, 187, 0, 0.15); border-color: rgba(255, 187, 0, 0.4); color: var(--accent-amber); }
+        .btn-amber:hover { background: rgba(255, 187, 0, 0.35); border-color: var(--accent-amber); }
+
+        .key-badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            color: var(--accent-cyan);
+        }
+
+        /* ── DRAWER & CONTROLS ── */
+        #controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: min(350px, 85vw);
+            z-index: 260;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 75px 20px 25px 20px;
+            display: none;
+            overflow-y: auto;
+            backdrop-filter: blur(8px);
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        }
+        #controls.open { display: block; }
+        #controls h1 {
+            font-size: 1.3rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .control-group { margin-bottom: 16px; }
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            margin-bottom: 5px;
+            color: var(--text-main);
+        }
+        .help-text { font-size: 0.68rem; color: var(--text-muted); line-height: 1.3; display: block; margin-top: 3px; }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-cyan);
+            height: 5px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        #log-box {
+            height: 110px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            overflow-y: auto;
+            margin-top: 15px;
+            line-height: 1.4;
+        }
+        #log-box div { margin-bottom: 3px; }
+
+        .legend-text { font-size: 0.75rem; line-height: 1.5; color: var(--text-muted); margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 12px; }
+        .legend-text strong { color: var(--accent-cyan); }
+
+        #ov {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 250; display: none; backdrop-filter: blur(2px);
+        }
+        #ov.show { display: block; }
+
+        /* Floating quick action toolbar */
+        #quick-toolbar {
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            display: flex;
+            gap: 10px;
+            background: var(--panel-bg);
+            padding: 8px 16px;
+            border-radius: 30px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 20px rgba(0,0,0,0.6);
+        }
+        .quick-btn {
+            background: rgba(0, 243, 255, 0.12);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-family: var(--font-main);
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .quick-btn:hover { background: var(--accent-cyan); color: #000; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gridCanvas"></canvas>
+
+    <div id="ham">
+        <span></span><span></span><span></span>
+    </div>
+
+    <div id="ov"></div>
+
+    <div id="status-badge">
+        <span>PASSI: <strong id="step-counter" style="color:var(--accent-cyan)">0</strong></span>
+        <span>•</span>
+        <span id="highway-status" style="color:var(--accent-amber); font-weight:bold;">VAGABONDERIA CAOTICA</span>
+    </div>
+
+    <!-- Quick floating toolbar -->
+    <div id="quick-toolbar">
+        <button id="quick-photo" class="quick-btn" style="border-color:var(--accent-lime); color:var(--accent-lime);">📸 Foto PNG</button>
+        <button id="quick-pause" class="quick-btn">⏸️ Pausa</button>
+        <button id="quick-speed" class="quick-btn">⚡ Iperspazio</button>
+        <button id="quick-clear" class="quick-btn" style="border-color:var(--accent-amber); color:var(--accent-amber);">🧹 Pulisci</button>
+    </div>
+
+    <!-- Intro Modal -->
+    <div id="intro-modal" class="modal-overlay visible">
+        <div class="modal-card">
+            <h2>Langton (1986)</h2>
+            <p class="modal-subtitle">"Christopher Langton & La Vita Artificiale Emergente"</p>
+            <p class="modal-desc">
+                Nel 1986 presso il Los Alamos National Laboratory, Christopher Langton creò la <strong>Formica di Langton</strong>—un famoso automa cellulare 2D che dimostra il principio dell'<strong>Emergenza</strong> nella Vita Artificiale.<br><br>
+                Una formica cibernetica si muove su una griglia seguendo due regole microscopiche:<br>
+                • Su casella bianca: ruota di 90° a Destra, dipinge la casella, fa 1 passo.<br>
+                • Su casella colorata: ruota di 90° a Sinistra, cancella il colore, fa 1 passo.<br><br>
+                Dopo un'iniziale vagabonderia caotica (~10.000 passi), emerge spontaneamente una miracolosa <strong>"Autostrada" 🛣️</strong> a 104 passi e la formica marcia all'infinito!<br><br>
+                Tocca un punto qualsiasi dello schermo per rilasciare nuove formiche cibernetiche!
+            </p>
+            <button id="start-btn" class="btn btn-main" onclick="document.getElementById('intro-modal').classList.remove('visible'); document.getElementById('intro-modal').style.display='none';">Entra nella Colonia Emergente</button>
+        </div>
+    </div>
+
+    <!-- UI Panel / Drawer -->
+    <div id="controls">
+        <h1>Langton (1986)</h1>
+
+        <button id="btn-toggle-pause" class="btn">
+            <span id="lbl-pause">Pausa Simulazione</span>
+            <span class="key-badge">Spazio</span>
+        </button>
+
+        <button id="btn-photo" class="btn btn-amber">
+            <span>📸 Scatta Foto Pattern (PNG)</span>
+            <span class="key-badge">P</span>
+        </button>
+
+        <button id="btn-toggle-speed" class="btn">
+            <span id="lbl-speed">Attiva Iperspazio (100×)</span>
+            <span class="key-badge">H</span>
+        </button>
+
+        <button id="btn-clear" class="btn">
+            <span>Pulisci Colonia e Griglia</span>
+            <span class="key-badge">C</span>
+        </button>
+
+        <div class="control-group" style="margin-top: 15px;">
+            <label>Passi per Frame: <span id="val-spf" style="color:var(--accent-cyan)">2</span></label>
+            <input type="range" id="param-spf" min="1" max="100" step="1" value="2" oninput="stepsPerFrame = parseInt(this.value); document.getElementById('val-spf').innerText = this.value;">
+            <span class="help-text">Regola la velocità di calcolo della simulazione per ciascun frame.</span>
+        </div>
+
+        <div class="control-group">
+            <label>Dimensione Cella: <span id="val-cellsize" style="color:var(--accent-cyan)">10px</span></label>
+            <input type="range" id="param-cellsize" min="6" max="20" step="1" value="10" oninput="updateCellSize(parseInt(this.value));">
+            <span class="help-text">Modifica la risoluzione della griglia.</span>
+        </div>
+
+        <div id="log-box"></div>
+
+        <div class="legend-text">
+            <strong>SCOPERTA DELL'EMERGENZA:</strong><br><br>
+            1. <strong>Tocca uno schermo</strong> per posizionare una Formica Cibernetica 🐜.<br>
+            2. Attiva l'<strong>Iperspazio [H]</strong> per osservare la formica raggiungere 10.000 passi.<br>
+            3. Osserva la miracolosa <strong>Autostrada 🛣️</strong> emergere spontaneamente!
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gridCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let cellPixelSize = 10;
+        let cols = Math.floor(window.innerWidth / cellPixelSize);
+        let rows = Math.floor(window.innerHeight / cellPixelSize);
+
+        canvas.width = cols * cellPixelSize;
+        canvas.height = rows * cellPixelSize;
+
+        let grid = new Uint8Array(cols * rows);
+        
+        const ANT_COLORS = [
+            '#39ff14', // 1. Verde Lime
+            '#00f3ff', // 2. Ciano Neon
+            '#ffbb00', // 3. Giallo Ambra
+            '#ff007f', // 4. Rosa Magenta
+            '#a855f7', // 5. Viola Elettrico
+            '#ff5722', // 6. Arancio Neon
+            '#00ffaa'  // 7. Verde Primavera
+        ];
+
+        // Automa Formica
+        class Ant {
+            constructor(x, y, color = '#39ff14', colorIndex = 0) {
+                this.x = x;
+                this.y = y;
+                this.dir = 0; // 0: Su, 1: Destra, 2: Giù, 3: Sinistra
+                this.color = color;
+                this.colorIndex = colorIndex;
+                this.stepCount = 0;
+                this.snapshots = [];
+                this.isHighway = false;
+            }
+
+            step() {
+                const idx = this.y * cols + this.x;
+                const state = grid[idx];
+
+                // Regola Classica di Langton (RL):
+                // Su Bianco (0): Ruota a Destra (+1), dipinge la casella del colore della formica
+                // Su Colorato (>0): Ruota a Sinistra (-1), sbianca la casella (0)
+                if (state === 0) {
+                    this.dir = (this.dir + 1) % 4; // Ruota a Destra
+                    grid[idx] = this.colorIndex + 1; // Segna la casella col colore della formica (+1 offset)
+                } else {
+                    this.dir = (this.dir + 3) % 4; // Ruota a Sinistra
+                    grid[idx] = 0; // Cancella colore
+                }
+
+                // Avanza di un passo
+                if (this.dir === 0) this.y = (this.y - 1 + rows) % rows;      // Su
+                else if (this.dir === 1) this.x = (this.x + 1) % cols;         // Destra
+                else if (this.dir === 2) this.y = (this.y + 1) % rows;         // Giù
+                else if (this.dir === 3) this.x = (this.x - 1 + cols) % cols;    // Sinistra
+
+                this.stepCount++;
+                totalSteps++;
+
+                // Rilevatore matematico di periodicità dell'Autostrada (104 passi)
+                if (this.stepCount % 104 === 0) {
+                    this.snapshots.push({ x: this.x, y: this.y, dir: this.dir });
+                    if (this.snapshots.length > 4) this.snapshots.shift();
+
+                    if (this.snapshots.length === 4) {
+                        const d1x = this.snapshots[1].x - this.snapshots[0].x;
+                        const d1y = this.snapshots[1].y - this.snapshots[0].y;
+                        const d2x = this.snapshots[2].x - this.snapshots[1].x;
+                        const d2y = this.snapshots[2].y - this.snapshots[1].y;
+                        const d3x = this.snapshots[3].x - this.snapshots[2].x;
+                        const d3y = this.snapshots[3].y - this.snapshots[2].y;
+
+                        if (d1x === d2x && d2x === d3x && d1y === d2y && d2y === d3y &&
+                            this.snapshots[0].dir === this.snapshots[3].dir && (d1x !== 0 || d1y !== 0)) {
+                            this.isHighway = true;
+                        } else {
+                            this.isHighway = false;
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                ctx.save();
+                const px = this.x * cellPixelSize + cellPixelSize / 2;
+                const py = this.y * cellPixelSize + cellPixelSize / 2;
+                ctx.translate(px, py);
+                ctx.rotate(this.dir * Math.PI / 2);
+
+                const sz = Math.max(9, cellPixelSize * 1.6);
+                const col = this.color;
+
+                ctx.strokeStyle = col;
+                ctx.fillStyle = col;
+                ctx.shadowColor = col;
+                ctx.shadowBlur = 8;
+                ctx.lineWidth = 1.4;
+
+                // 1. Testa (Anteriore)
+                ctx.beginPath();
+                ctx.arc(0, -sz * 0.45, sz * 0.22, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Antenne (Curve)
+                ctx.beginPath();
+                ctx.moveTo(-sz * 0.12, -sz * 0.55);
+                ctx.quadraticCurveTo(-sz * 0.35, -sz * 0.85, -sz * 0.4, -sz * 0.95);
+                ctx.moveTo(sz * 0.12, -sz * 0.55);
+                ctx.quadraticCurveTo(sz * 0.35, -sz * 0.85, sz * 0.4, -sz * 0.95);
+                ctx.stroke();
+
+                // 2. Torace (Centrale)
+                ctx.beginPath();
+                ctx.ellipse(0, -sz * 0.08, sz * 0.18, sz * 0.25, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 3. Addome (Posteriore Luminoso)
+                ctx.fillStyle = col;
+                ctx.beginPath();
+                ctx.ellipse(0, sz * 0.45, sz * 0.28, sz * 0.38, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 4. 6 Zampette Articolate
+                ctx.beginPath();
+                ctx.moveTo(-sz * 0.15, -sz * 0.2); ctx.lineTo(-sz * 0.65, -sz * 0.45);
+                ctx.moveTo(sz * 0.15, -sz * 0.2);  ctx.lineTo(sz * 0.65, -sz * 0.45);
+                ctx.moveTo(-sz * 0.18, 0);         ctx.lineTo(-sz * 0.7, -0.05);
+                ctx.moveTo(sz * 0.18, 0);          ctx.lineTo(sz * 0.7, -0.05);
+                ctx.moveTo(-sz * 0.15, sz * 0.2);  ctx.lineTo(-sz * 0.65, sz * 0.45);
+                ctx.moveTo(sz * 0.15, sz * 0.2);   ctx.lineTo(sz * 0.65, sz * 0.45);
+                ctx.stroke();
+
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+        }
+
+        const ants = [];
+        let totalSteps = 0;
+        let isRunning = true;
+        let stepsPerFrame = 2;
+
+        function addAnt(x = Math.floor(cols / 2), y = Math.floor(rows / 2)) {
+            const colorIndex = ants.length % ANT_COLORS.length;
+            const color = ANT_COLORS[colorIndex];
+            ants.push(new Ant(x, y, color, colorIndex));
+            logMsg(`Formica Cibernetica 🐜 aggiunta a (${x}, ${y})`);
+        }
+
+        // Inizializza 1ª formica al centro della griglia
+        addAnt();
+
+        function logMsg(msg) {
+            const box = document.getElementById('log-box');
+            if (!box) return;
+            const div = document.createElement('div');
+            div.innerText = `[${new Date().toLocaleTimeString().split(' ')[0]}] ${msg}`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // ── SINTESI SPOSTAMENTO E SUONI WEB AUDIO API ──
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) audioCtx = new AudioContextClass();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function playChime() {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+                const now = ctx.currentTime;
+
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.3);
+
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.12, now + 0.04);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.36);
+            } catch(e) {}
+        }
+
+        function playCameraShutterSound() {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+                const now = ctx.currentTime;
+
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.06);
+
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.15, now + 0.005);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } catch(e) {}
+        }
+
+        function takePhoto() {
+            playCameraShutterSound();
+
+            redrawAllGrid();
+            ants.forEach(ant => ant.draw());
+
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            link.download = `Langton_Emergent_Pattern_${timestamp}.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            logMsg(`📸 Foto salvata: Langton_Emergent_Pattern_${timestamp}.png`);
+        }
+
+        let highwayChimeTriggered = false;
+
+        function updateCellSize(newSize) {
+            cellPixelSize = newSize;
+            document.getElementById('val-cellsize').innerText = newSize + 'px';
+            cols = Math.floor(window.innerWidth / cellPixelSize);
+            rows = Math.floor(window.innerHeight / cellPixelSize);
+            canvas.width = cols * cellPixelSize;
+            canvas.height = rows * cellPixelSize;
+            grid = new Uint8Array(cols * rows);
+            totalSteps = 0;
+            highwayChimeTriggered = false;
+            ants.forEach(ant => {
+                ant.x = Math.floor(cols / 2);
+                ant.y = Math.floor(rows / 2);
+                ant.stepCount = 0;
+            });
+            redrawAllGrid();
+        }
+
+        function redrawAllGrid() {
+            ctx.fillStyle = '#040a0e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const state = grid[r * cols + c];
+                    if (state > 0) {
+                        ctx.fillStyle = ANT_COLORS[(state - 1) % ANT_COLORS.length];
+                        ctx.fillRect(c * cellPixelSize, r * cellPixelSize, cellPixelSize, cellPixelSize);
+                    }
+                }
+            }
+        }
+
+        function clearAll() {
+            grid.fill(0);
+            ants.length = 0;
+            totalSteps = 0;
+            highwayChimeTriggered = false;
+            redrawAllGrid();
+            logMsg(`Colonia e griglia ripulite. Tocca lo schermo per aggiungere una formica!`);
+        }
+
+        // ── SIMULATION LOOP ──
+        function loop() {
+            if (isRunning) {
+                for (let step = 0; step < stepsPerFrame; step++) {
+                    ants.forEach(ant => ant.step());
+                }
+            }
+
+            redrawAllGrid();
+            ants.forEach(ant => ant.draw());
+
+            const counterEl = document.getElementById('step-counter');
+            if (counterEl) counterEl.innerText = totalSteps.toLocaleString();
+
+            const hStatus = document.getElementById('highway-status');
+            const anyHighway = ants.some(ant => ant.isHighway);
+
+            if (hStatus) {
+                if (anyHighway) {
+                    hStatus.innerText = 'AUTOSTRADA EMERSA! 🛣️';
+                    hStatus.style.color = '#39ff14';
+                    if (!highwayChimeTriggered) {
+                        highwayChimeTriggered = true;
+                        playChime();
+                        logMsg(`AUTOSTRADA CONFERMATA! Pattern ripetitivo a 104 passi rilevato al passo ${totalSteps.toLocaleString()}.`);
+                    }
+                } else if (ants.length === 0) {
+                    hStatus.innerText = 'NESSUNA FORMICA';
+                    hStatus.style.color = '#00f3ff';
+                } else if (totalSteps > 500) {
+                    hStatus.innerText = 'COSTRUZIONE SCIAME...';
+                    hStatus.style.color = '#00f3ff';
+                } else {
+                    hStatus.innerText = 'VAGABONDERIA CAOTICA';
+                    hStatus.style.color = '#ffbb00';
+                }
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // ── GESTIONE INTERAZIONI ──
+        canvas.addEventListener('pointerdown', (e) => {
+            getAudioContext();
+            if (e.target !== canvas) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const cx = Math.floor((e.clientX - rect.left) / cellPixelSize);
+            const cy = Math.floor((e.clientY - rect.top) / cellPixelSize);
+
+            if (cx >= 0 && cx < cols && cy >= 0 && cy < rows) {
+                addAnt(cx, cy);
+            }
+        });
+
+        // Pulsanti della Toolbar
+        document.getElementById('btn-toggle-pause').addEventListener('click', togglePause);
+        document.getElementById('quick-pause').addEventListener('click', togglePause);
+
+        function togglePause() {
+            isRunning = !isRunning;
+            const btnText = isRunning ? 'Pausa Simulazione' : 'Riprendi Simulazione';
+            document.getElementById('lbl-pause').innerText = btnText;
+            document.getElementById('quick-pause').innerText = isRunning ? '⏸️ Pausa' : '▶️ Riprendi';
+            logMsg(isRunning ? 'Simulazione in pausa.' : 'Simulazione ripresa.');
+        }
+
+        document.getElementById('btn-photo').addEventListener('click', takePhoto);
+        document.getElementById('quick-photo').addEventListener('click', takePhoto);
+
+        let isHyperspeed = false;
+        function toggleHyperspeed() {
+            isHyperspeed = !isHyperspeed;
+            stepsPerFrame = isHyperspeed ? 100 : 2;
+            document.getElementById('param-spf').value = stepsPerFrame;
+            document.getElementById('val-spf').innerText = stepsPerFrame;
+            document.getElementById('lbl-speed').innerText = isHyperspeed ? 'Disattiva Iperspazio (2×)' : 'Attiva Iperspazio (100×)';
+            logMsg(isHyperspeed ? 'Iperspazio (100×) attivato.' : 'Velocità normale (2×) ripristinata.');
+        }
+
+        document.getElementById('btn-toggle-speed').addEventListener('click', toggleHyperspeed);
+        document.getElementById('quick-speed').addEventListener('click', toggleHyperspeed);
+
+        document.getElementById('btn-clear').addEventListener('click', clearAll);
+        document.getElementById('quick-clear').addEventListener('click', clearAll);
+
+        // Scorciatoie da Tastiera
+        window.addEventListener('keydown', (e) => {
+            getAudioContext();
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const key = e.key.toLowerCase();
+            if (e.code === 'Space' || key === ' ') {
+                e.preventDefault();
+                togglePause();
+            } else if (key === 'p') {
+                takePhoto();
+            } else if (key === 'h') {
+                toggleHyperspeed();
+            } else if (key === 'c') {
+                clearAll();
+            }
+        });
+
+        // Gestione Drawer Menu
+        const ham = document.getElementById('ham');
+        const controls = document.getElementById('controls');
+        const ov = document.getElementById('ov');
+
+        function toggleMenu() {
+            ham.classList.toggle('open');
+            controls.classList.toggle('open');
+            ov.classList.toggle('show');
+        }
+
+        ham.addEventListener('click', toggleMenu);
+        ov.addEventListener('click', toggleMenu);
+
+        logMsg(`Simulazione Formica di Langton (1986) inizializzata.`);
+        redrawAllGrid();
+        loop();
+    </script>
+</body>
+</html>

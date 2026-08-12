@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Zoo — Cybernetic Hub (Prof. Davide Riboli)</title>
+    <style>
+        :root {
+            --bg-color: #030a08;
+            --card-bg: rgba(6, 22, 16, 0.85);
+            --border-color: rgba(45, 180, 120, 0.35);
+            --text-main: #f0f7f3;
+            --text-muted: #8cbfa8;
+            --accent-lime: #39ff14;
+            --accent-cyan: #00f3ff;
+            --accent-amber: #ffbb00;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body, html {
+            width: 100%;
+            min-height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            overflow-x: hidden;
+        }
+
+        canvas#bgCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 50px 20px 80px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .main-title {
+            font-size: clamp(2.4rem, 6vw, 4.2rem);
+            color: var(--accent-lime);
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            margin-bottom: 12px;
+            text-shadow: 0 0 25px rgba(57, 255, 20, 0.35);
+        }
+
+        .subtitle {
+            font-size: clamp(0.95rem, 2.2vw, 1.25rem);
+            color: var(--accent-cyan);
+            letter-spacing: 2px;
+            margin-bottom: 18px;
+        }
+
+        .author-tag {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            border-top: 1px dashed var(--border-color);
+            border-bottom: 1px dashed var(--border-color);
+            display: inline-block;
+            padding: 8px 24px;
+            margin-top: 10px;
+        }
+
+        /* ── LANGUAGE SELECTION GRID ── */
+        .lang-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 35px;
+            margin-bottom: 50px;
+        }
+
+        .lang-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 40px 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            backdrop-filter: blur(8px);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            color: inherit;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .lang-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 4px;
+            background: linear-gradient(90deg, var(--accent-lime), var(--accent-cyan));
+            opacity: 0.6;
+            transition: opacity 0.3s;
+        }
+
+        .lang-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--accent-lime);
+            box-shadow: 0 12px 35px rgba(57, 255, 20, 0.25);
+        }
+        .lang-card:hover::before { opacity: 1; }
+
+        .lang-title {
+            font-size: 1.8rem;
+            color: var(--accent-lime);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 18px;
+        }
+
+        .lang-desc {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            margin-bottom: 30px;
+            line-height: 1.65;
+            text-align: left;
+        }
+
+        .btn-enter {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 28px;
+            background: rgba(45, 180, 120, 0.15);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-size: 0.88rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+
+        .lang-card:hover .btn-enter {
+            background: var(--accent-lime);
+            color: #000;
+            border-color: var(--accent-lime);
+        }
+
+        footer {
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            padding-top: 30px;
+            margin-top: 40px;
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 30px 15px 40px 15px; }
+            .lang-grid { grid-template-columns: 1fr; }
+            .lang-card { padding: 30px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bgCanvas"></canvas>
+
+    <div class="container">
+        <header>
+            <h1 class="main-title">Digital Zoo</h1>
+            <p class="subtitle">Simulazioni Cibernetiche & Arte Generativa (1912 — 1959)</p>
+            <div class="author-tag">
+                Prof. Davide Riboli • Accademia di Belle Arti "M. Sironi" di Sassari
+            </div>
+        </header>
+
+        <nav class="lang-grid">
+            <!-- ITALIANO -->
+            <a href="./ITA/index.html" class="lang-card">
+                <div>
+                    <h2 class="lang-title">ITA</h2>
+                    <p class="lang-desc">
+                        Un percorso didattico e divulgativo che ricostruisce i primissimi automi della storia della cibernetica e dell'IA (1912–1959). Esplora come comportamenti complessi e adattivi emergano direttamente dalla retroazione tra sensori analogici, circuiti e ambiente.
+                    </p>
+                </div>
+                <div class="btn-enter">
+                    <span>Entra nell'Hub</span>
+                    <span>➔</span>
+                </div>
+            </a>
+
+            <!-- ENGLISH -->
+            <a href="./ENG/index.html" class="lang-card">
+                <div>
+                    <h2 class="lang-title">ENG</h2>
+                    <p class="lang-desc">
+                        An educational project recreating the earliest automata in the history of cybernetics and AI (1912–1959). Explore how complex, adaptive behaviors emerge directly from feedback loops between analog sensors, circuits, and environment.
+                    </p>
+                </div>
+                <div class="btn-enter">
+                    <span>Enter Hub</span>
+                    <span>➔</span>
+                </div>
+            </a>
+        </nav>
+
+        <footer>
+            <p>Digital Zoo — Un'esplorazione della pre-storia dell'Intelligenza Artificiale e della Robotica.</p>
+            <p style="margin-top: 6px; font-size: 0.75rem; color: #55806e;">MIT License • Prof. Davide Riboli</p>
+        </footer>
+    </div>
+
+    <!-- BACKGROUND INTERACTIVE ANIMAL ICONS -->
+    <script>
+        const canvas = document.getElementById('bgCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        const animalIcons = ['🐕', '🐙', '🐢', '🐘', '🐸', '🐜', '🐟', '🍄'];
+        const particles = [];
+        for (let i = 0; i < 35; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.7,
+                vy: (Math.random() - 0.5) * 0.7,
+                icon: animalIcons[Math.floor(Math.random() * animalIcons.length)],
+                fontSize: Math.random() * 16 + 18,
+                alpha: Math.random() * 0.35 + 0.15,
+                rotation: (Math.random() - 0.5) * 0.4,
+                rotSpeed: (Math.random() - 0.5) * 0.005
+            });
+        }
+
+        let mouseX = width / 2;
+        let mouseY = height / 2;
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        function loop() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw floating animal icons
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rotation += p.rotSpeed;
+
+                if (p.x < -40) p.x = width + 40;
+                if (p.x > width + 40) p.x = -40;
+                if (p.y < -40) p.y = height + 40;
+                if (p.y > height + 40) p.y = -40;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.globalAlpha = p.alpha;
+                ctx.font = `${p.fontSize}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(p.icon, 0, 0);
+                ctx.restore();
+            });
+
+            // Interactive mouse glow
+            const grad = ctx.createRadialGradient(mouseX, mouseY, 10, mouseX, mouseY, 260);
+            grad.addColorStop(0, 'rgba(0, 243, 255, 0.08)');
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(mouseX, mouseY, 260, 0, Math.PI * 2);
+            ctx.fill();
+
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>

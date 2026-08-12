@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Taddeo (1959) — What the Frog's Eye Tells the Frog's Brain</title>
+    <style>
+        :root {
+            --bg-color: #051410;
+            --panel-bg: rgba(6, 24, 18, 0.92);
+            --border-color: rgba(45, 180, 120, 0.4);
+            --text-main: #e6f7f0;
+            --text-muted: #8cbfa8;
+            --font-main: 'Courier New', Courier, monospace;
+            --accent-lime: #39ff14;
+            --accent-cyan: #00f3ff;
+            --accent-amber: #ffbb00;
+            --accent-danger: #ff3355;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            touch-action: none;
+        }
+
+        canvas#pondCanvas {
+            display: block;
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* ── RETINAL TECTUM MONITOR (PIP) ── */
+        #pip-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(3, 15, 10, 0.92);
+            border: 2px solid var(--accent-lime);
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 0 15px rgba(57, 255, 20, 0.25);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            backdrop-filter: blur(6px);
+            transition: all 0.3s ease;
+        }
+
+        #pip-header {
+            font-size: 0.65rem;
+            font-weight: bold;
+            color: var(--accent-lime);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        #pipCanvas {
+            border: 1px solid rgba(57, 255, 20, 0.4);
+            border-radius: 4px;
+            background: #000000;
+            display: block;
+        }
+
+        #pip-status {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        /* ── HAMBURGER & HUD ── */
+        #ham {
+            position: fixed; top: 16px; left: 16px; z-index: 300;
+            width: 44px; height: 44px;
+            border-radius: 6px; background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            cursor: pointer; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 5px;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #ham:hover { background: rgba(45, 180, 120, 0.25); }
+        #ham span { width: 20px; height: 2px; background: var(--accent-lime); transition: all 0.3s; }
+        #ham.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        #ham.open span:nth-child(2) { opacity: 0; }
+        #ham.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        #status-badge {
+            position: fixed; top: 20px; right: 20px; z-index: 200;
+            font-size: 0.75rem; color: var(--text-main); background: var(--panel-bg);
+            padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border-color);
+            letter-spacing: 1px; font-weight: bold; backdrop-filter: blur(4px);
+        }
+        .mode-idle { color: var(--accent-lime); }
+        .mode-locked { color: var(--accent-amber); }
+        .mode-strike { color: var(--accent-cyan); }
+        .mode-diving { color: var(--accent-danger); }
+
+        /* ── OVERLAY & DRAWER ── */
+        #ov {
+            position: fixed; inset: 0; z-index: 250; background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #ov.show { opacity: 1; pointer-events: all; }
+
+        #controls {
+            position: fixed; top: 0; left: 0; height: 100%; width: min(350px, 88vw); z-index: 260;
+            background: var(--panel-bg); border-right: 1px solid var(--border-color);
+            transform: translateX(-100%); transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; overflow-y: auto;
+            padding: 75px 20px 30px 20px;
+            scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;
+        }
+        #controls.open { transform: translateX(0); }
+
+        h1 {
+            font-size: 1.25rem; text-transform: uppercase; letter-spacing: 2px;
+            color: var(--accent-lime); margin-bottom: 4px;
+        }
+        .subtitle { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 20px; border-bottom: 1px dashed var(--border-color); padding-bottom: 10px; }
+
+        .section-title {
+            font-size: 0.8rem; text-transform: uppercase; color: var(--accent-cyan);
+            letter-spacing: 1.5px; margin: 18px 0 10px 0; font-weight: bold;
+        }
+
+        .btn {
+            width: 100%; padding: 11px; margin-bottom: 8px;
+            background: rgba(45, 180, 120, 0.15); border: 1px solid var(--border-color);
+            color: var(--text-main); font-family: var(--font-main); font-size: 0.82rem;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+            border-radius: 5px; transition: all 0.2s; text-align: left;
+            display: flex; align-items: center; justify-content: space-between;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn:hover, .btn:active { background: rgba(45, 180, 120, 0.35); border-color: var(--accent-lime); }
+        .btn-alert { background: rgba(255, 51, 85, 0.15); border-color: rgba(255, 51, 85, 0.4); color: #ff99aa; }
+        .btn-alert:hover { background: rgba(255, 51, 85, 0.35); border-color: var(--accent-danger); }
+        .btn-secondary { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.2); }
+
+        .key-badge {
+            font-size: 0.7rem; padding: 2px 6px; background: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color); border-radius: 3px; color: var(--accent-lime);
+        }
+
+        .control-group { margin-bottom: 14px; }
+        .control-group label { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 6px; color: var(--text-main); }
+        .help-text { font-size: 0.68rem; color: var(--text-muted); line-height: 1.3; display: block; margin-top: 3px; }
+
+        input[type="range"] {
+            width: 100%; accent-color: var(--accent-lime); height: 5px;
+            background: rgba(255,255,255,0.1); border-radius: 3px; cursor: pointer;
+        }
+
+        .legend-text { font-size: 0.78rem; line-height: 1.5; color: var(--text-muted); margin-top: 10px; }
+        .legend-text p { margin-bottom: 8px; }
+        .legend-text strong { color: var(--accent-lime); }
+        .legend-text em { color: var(--accent-cyan); font-style: normal; }
+
+        /* ── INTRO MODAL ── */
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 500;
+            background: rgba(2, 10, 8, 0.92); backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
+        }
+        .modal-overlay.visible { opacity: 1; pointer-events: all; }
+
+        .modal-card {
+            max-width: 520px; background: rgba(6, 28, 22, 0.95);
+            border: 2px solid var(--accent-lime); border-radius: 10px;
+            padding: 30px; text-align: center; box-shadow: 0 0 30px rgba(57, 255, 20, 0.2);
+        }
+        .modal-card h2 { font-size: 1.8rem; color: var(--accent-lime); text-transform: uppercase; letter-spacing: 3px; margin-bottom: 5px; }
+        .modal-subtitle { font-size: 0.9rem; color: var(--accent-cyan); font-style: italic; margin-bottom: 20px; }
+        .modal-desc { font-size: 0.88rem; line-height: 1.6; color: var(--text-main); margin-bottom: 30px; text-align: left; }
+        .btn-main { text-align: center; justify-content: center; padding: 14px; font-weight: bold; background: var(--accent-lime); color: #000; border: none; font-size: 0.9rem; }
+        .btn-main:hover { background: #55ff33; color: #000; }
+
+        @media (max-width: 600px) {
+            #pip-container { bottom: 10px; right: 10px; scale: 0.85; transform-origin: bottom right; }
+            #status-badge { font-size: 0.65rem; padding: 6px 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="pondCanvas"></canvas>
+
+    <!-- PIP Retinal Monitor -->
+    <div id="pip-container">
+        <div id="pip-header">MONITOR DEL TECTO RETINICO</div>
+        <canvas id="pipCanvas" width="160" height="120"></canvas>
+        <div id="pip-status">Filtro: Sfondo soppresso (0 Hz)</div>
+    </div>
+
+    <!-- Hamburger Toggle -->
+    <div id="ham" title="Menu Controlli e Legenda">
+        <span></span><span></span><span></span>
+    </div>
+
+    <!-- HUD Badge -->
+    <div id="status-badge">TECTUM: <span id="sys-mode" class="mode-idle">MONITORAGGIO</span></div>
+
+    <!-- Drawer Controls -->
+    <div id="ov"></div>
+    <div id="controls">
+        <h1>Taddeo (1959)</h1>
+        <p class="subtitle">La retina biologica come computer di feature</p>
+
+        <div class="section-title">Esperimenti & Stimoli</div>
+        <button id="btn-spawn-bug" class="btn">🪰 Lancia Mosca <span class="key-badge">Click</span></button>
+        <button id="btn-spawn-leaf" class="btn">🍃 Lancia Foglia <span class="key-badge">F</span></button>
+        <button id="btn-spawn-rock" class="btn">🪨 Posiziona Sasso <span class="key-badge">S</span></button>
+        <button id="btn-predator" class="btn btn-alert">🐍 Serpente Predatore <span class="key-badge" style="color:#ff99aa;">P</span></button>
+        <button id="btn-clear" class="btn btn-secondary">🧹 Pulisci Stagno <span class="key-badge" style="color:#aaa;">Spazio</span></button>
+
+        <div class="section-title">Parametri Retinici</div>
+        <div class="control-group">
+            <label>Soglia Bug Detector: <span id="val-bug-size">14px</span></label>
+            <input type="range" id="bug-size-range" min="6" max="30" value="14">
+            <span class="help-text">Dimensione massima dell'oggetto per attivare la risposta del Bug Detector.</span>
+        </div>
+        <div class="control-group">
+            <label>Velocità Lingua: <span id="val-tongue-speed">Rapida</span></label>
+            <input type="range" id="tongue-speed-range" min="10" max="30" value="20">
+        </div>
+
+        <div class="section-title">Monitor Tettale PIP</div>
+        <button id="btn-toggle-pip" class="btn btn-secondary">👁️ Mostra / Nascondi PIP</button>
+
+        <div class="section-title">Legenda & Istruzioni</div>
+        <div class="legend-text">
+            <p><strong>Desktop (Scorciatoie Tastiera):</strong> Muovi il mouse e premi <strong>[S]</strong> per posizionare un sasso, <strong>[F]</strong> per una foglia, <strong>[P]</strong> per far scivolare il serpente alla quota del cursore, e <strong>[Spazio]</strong> per ripulire lo stagno.</p>
+            <p><strong>Mobile / Click:</strong> Fai clic o tap sullo stagno per lanciare una mosca, oppure usa i pulsanti nel menu.</p>
+            <p><strong>🪰 Mosca:</strong> Riconosciuta dal <em>Net Convexity Detector</em> (piccola, scura, veloce). Innesca il colpo di lingua balistico di Taddeo.</p>
+            <p><strong>🍃 Foglia:</strong> Attiva il <em>Moving Edge Detector</em>, ma non il Bug Detector (troppo grande/lenta per l'attacco).</p>
+            <p><strong>🪨 Sasso:</strong> Una volta immobile sul fondo, la <em>Stationary Background Suppression</em> lo cancella dalla vista retinica.</p>
+            <p><strong>🐍 Serpente:</strong> Attiva il <em>Net Dimming Detector</em> (calo improvviso di luce e grande silhouette), spingendo Taddeo a tuffarsi sott'acqua.</p>
+        </div>
+
+        <div class="legend-text" style="border-top: 1px dashed var(--border-color); margin-top: 15px; padding-top: 12px;">
+            <p><em>Basato sulle ricerche di J. Lettvin, H. Maturana, W. McCulloch e W. Pitts (MIT, 1959).</em></p>
+            <p style="margin-top: 4px;">Curato dal Prof. Davide Riboli (Accademia di Belle Arti "M. Sironi" di Sassari).</p>
+        </div>
+    </div>
+
+    <!-- Historical Intro Modal -->
+    <div id="intro-modal" class="modal-overlay visible">
+        <div class="modal-card">
+            <h2>Taddeo (1959)</h2>
+            <p class="modal-subtitle">"What the Frog's Eye Tells the Frog's Brain"</p>
+            <p class="modal-desc">
+                Nel 1959 al MIT, Jerome Lettvin e i suoi colleghi scoprirono che la retina della rana non trasmette una "fotografia" al cervello, ma agisce come un computer parallelo integrato.<br><br>
+                La retina filtra il mondo estraendo solo i segnali utili alla sopravvivenza: cancella gli sfondi fissi, ignora le foglie lente e scatena l'attacco <strong>esclusivamente</strong> su piccoli punti scuri in movimento rapido.
+            </p>
+            <button id="start-btn" class="btn btn-main" onclick="document.getElementById('intro-modal').classList.remove('visible'); document.getElementById('intro-modal').style.display='none';">Entra nello Stagno Cibernetico</button>
+        </div>
+    </div>
+
+    <!-- SIMULATION LOGIC -->
+    <script>
+        // ── CANVAS SETUP ──
+        const canvas = document.getElementById('pondCanvas');
+        const ctx = canvas.getContext('2d');
+        const pipCanvas = document.getElementById('pipCanvas');
+        const pipCtx = pipCanvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        let mouseX = width / 2;
+        let mouseY = height / 2;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            frog.x = width * 0.5;
+            frog.y = height * 0.52;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        // ── STATE VARIABLES ──
+        let bugs = [];
+        let leaves = [];
+        let rocks = [];
+        let ripples = [];
+        let predator = null;
+        let showPip = true;
+
+        let maxBugSize = 14;
+        let tongueSpeed = 20;
+
+        // ── FROG "TADDEO" STATE ──
+        const frog = {
+            x: width * 0.5,
+            y: height * 0.52,
+            radius: 38,
+            angle: 0,
+            targetAngle: 0,
+            state: 'IDLE', // IDLE, LOCKED, STRIKE, DIVING
+            tongueLen: 0,
+            maxTongueLen: 0,
+            tongueTarget: null,
+            divingProgress: 0
+        };
+
+        // ── ENTITY CLASSES ──
+        class Bug {
+            constructor(x, y) {
+                this.x = x || Math.random() * (width - 120) + 60;
+                this.y = y || Math.random() * (height - 120) + 60;
+                this.vx = (Math.random() - 0.5) * 6;
+                this.vy = (Math.random() - 0.5) * 6;
+                this.size = Math.random() * 4 + 5; // 5 to 9px (small bug)
+                this.wingTimer = 0;
+                this.type = 'BUG';
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.wingTimer += 0.4;
+                // Erratic bio-flight jitter
+                if (Math.random() < 0.09) {
+                    this.vx += (Math.random() - 0.5) * 5;
+                    this.vy += (Math.random() - 0.5) * 5;
+                    const speed = Math.hypot(this.vx, this.vy);
+                    if (speed > 8) { this.vx = (this.vx/speed)*8; this.vy = (this.vy/speed)*8; }
+                }
+                // Bounce bounds
+                if (this.x < 30 || this.x > width - 30) this.vx *= -1;
+                if (this.y < 30 || this.y > height - 30) this.vy *= -1;
+            }
+            draw(c) {
+                c.save();
+                c.translate(this.x, this.y);
+                // Wings
+                c.fillStyle = 'rgba(200, 255, 230, 0.65)';
+                const wSize = Math.sin(this.wingTimer) * 6;
+                c.beginPath(); c.ellipse(-3, -4, 5, Math.abs(wSize) + 2, 0.4, 0, Math.PI*2); c.fill();
+                c.beginPath(); c.ellipse(3, -4, 5, Math.abs(wSize) + 2, -0.4, 0, Math.PI*2); c.fill();
+                // Body
+                c.fillStyle = '#081d14';
+                c.beginPath(); c.arc(0, 0, this.size*0.6, 0, Math.PI*2); c.fill();
+                c.fillStyle = '#39ff14';
+                c.beginPath(); c.arc(0, 0, 2.5, 0, Math.PI*2); c.fill();
+                c.restore();
+            }
+        }
+
+        class Leaf {
+            constructor(x, y) {
+                this.x = x || Math.random() * (width - 120) + 60;
+                this.y = y || Math.random() * (height - 120) + 60;
+                this.vx = (Math.random() - 0.5) * 0.8;
+                this.vy = (Math.random() - 0.5) * 0.8;
+                this.size = Math.random() * 15 + 32; // Large (32-47px)
+                this.angle = Math.random() * Math.PI * 2;
+                this.vRot = (Math.random() - 0.5) * 0.01;
+                this.type = 'LEAF';
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.angle += this.vRot;
+                if (this.x < 20 || this.x > width - 20) this.vx *= -1;
+                if (this.y < 20 || this.y > height - 20) this.vy *= -1;
+            }
+            draw(c) {
+                c.save();
+                c.translate(this.x, this.y);
+                c.rotate(this.angle);
+                c.fillStyle = 'rgba(25, 95, 60, 0.7)';
+                c.strokeStyle = 'rgba(45, 180, 120, 0.5)';
+                c.lineWidth = 1.5;
+                c.beginPath();
+                c.ellipse(0, 0, this.size, this.size * 0.65, 0, 0, Math.PI*2);
+                c.fill(); c.stroke();
+                c.beginPath(); c.moveTo(-this.size*0.8, 0); c.lineTo(this.size*0.8, 0); c.stroke();
+                c.restore();
+            }
+        }
+
+        class Rock {
+            constructor(x, y) {
+                this.x = x || Math.random() * (width - 120) + 60;
+                this.y = y || Math.random() * (height - 120) + 60;
+                this.size = 24 + Math.random() * 10;
+                this.type = 'ROCK';
+            }
+            draw(c) {
+                c.save();
+                c.translate(this.x, this.y);
+                c.fillStyle = '#0f2922';
+                c.strokeStyle = '#224a3e';
+                c.lineWidth = 2;
+                c.beginPath();
+                c.arc(0, 0, this.size, 0, Math.PI * 2);
+                c.fill(); c.stroke();
+                c.restore();
+            }
+        }
+
+        class Predator {
+            constructor(spawnY) {
+                this.x = -220;
+                this.y = (spawnY !== undefined && spawnY !== null) ? spawnY : (Math.random() * (height * 0.5) + height * 0.15);
+                this.vx = 7.5;
+                this.waveTimer = 0;
+                this.active = true;
+            }
+            update() {
+                this.x += this.vx;
+                this.waveTimer += 0.18;
+                if (this.x > width + 250) this.active = false;
+            }
+            draw(c) {
+                c.save();
+                c.translate(this.x, this.y);
+
+                c.fillStyle = 'rgba(0, 0, 0, 0.65)';
+                c.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+
+                // Sinuous undulating body segments
+                const numSegments = 32;
+                const segmentDist = 6.5;
+
+                for (let i = 0; i < numSegments; i++) {
+                    const segX = -i * segmentDist;
+                    const waveY = Math.sin(this.waveTimer - i * 0.28) * 16 * (1 - i / numSegments * 0.2);
+                    const radius = Math.max(2, (1 - i / numSegments) * 14);
+
+                    c.beginPath();
+                    c.arc(segX, waveY, radius, 0, Math.PI * 2);
+                    c.fill();
+                }
+
+                // Snake Head
+                const headY = Math.sin(this.waveTimer) * 16;
+                c.save();
+                c.translate(10, headY);
+                c.beginPath();
+                c.moveTo(16, 0); // Nose tip
+                c.lineTo(-6, -11); // Left jaw
+                c.lineTo(-12, 0);  // Neck
+                c.lineTo(-6, 11);  // Right jaw
+                c.closePath();
+                c.fill();
+
+                // Red glowing predator eyes
+                c.fillStyle = '#ff3355';
+                c.beginPath(); c.arc(3, -5, 2.5, 0, Math.PI * 2); c.fill();
+                c.beginPath(); c.arc(3, 5, 2.5, 0, Math.PI * 2); c.fill();
+
+                // Forked tongue flickering
+                if (Math.sin(this.waveTimer * 2.5) > 0) {
+                    c.strokeStyle = '#ff3355';
+                    c.lineWidth = 1.8;
+                    c.beginPath();
+                    c.moveTo(16, 0);
+                    c.lineTo(26, 0);
+                    c.lineTo(31, -4);
+                    c.moveTo(26, 0);
+                    c.lineTo(31, 4);
+                    c.stroke();
+                }
+
+                c.restore();
+                c.restore();
+            }
+        }
+
+        function createRipple(x, y, maxR = 40) {
+            ripples.push({ x, y, r: 5, maxR, alpha: 0.8 });
+        }
+
+        // ── INITIAL ENVIRONMENT ──
+        for (let i = 0; i < 4; i++) bugs.push(new Bug());
+        for (let i = 0; i < 3; i++) leaves.push(new Leaf());
+        rocks.push(new Rock(width * 0.25, height * 0.3));
+        rocks.push(new Rock(width * 0.75, height * 0.7));
+
+        // ── RETINAL FEATURE EXTRACTION LOGIC (LETTVIIN 1959) ──
+        function processRetinalTectum() {
+            let modeText = 'MONITORAGGIO';
+            let modeClass = 'mode-idle';
+
+            if (predator && predator.active && predator.x > width * 0.15 && predator.x < width * 0.85) {
+                // Dimming Detector High Activation -> DIVING
+                frog.state = 'DIVING';
+                modeText = 'PREDATORE (DIVING)';
+                modeClass = 'mode-diving';
+                return;
+            }
+
+            if (frog.state === 'DIVING') {
+                if (!predator || !predator.active) frog.state = 'IDLE';
+                else return;
+            }
+
+            if (frog.state === 'STRIKE') {
+                modeText = 'ATTACCO BALISTICO';
+                modeClass = 'mode-strike';
+                return;
+            }
+
+            // Scan for small, fast, convex targets (Bug Detector)
+            let closestBug = null;
+            let minDist = 360; // Expanded visual radius
+
+            for (let b of bugs) {
+                const dist = Math.hypot(b.x - frog.x, b.y - frog.y);
+                const speed = Math.hypot(b.vx, b.vy);
+
+                // Lettvin Bug Detector Conditions:
+                // 1. Small size <= maxBugSize
+                // 2. Motion speed > 0.4 (must be moving)
+                // 3. Within visual range
+                if (b.size <= maxBugSize && speed > 0.4 && dist < minDist) {
+                    minDist = dist;
+                    closestBug = b;
+                }
+            }
+
+            if (closestBug) {
+                frog.state = 'LOCKED';
+                frog.tongueTarget = closestBug;
+                frog.targetAngle = Math.atan2(closestBug.y - frog.y, closestBug.x - frog.x);
+                modeText = 'BUG RILEVATO (' + Math.round(minDist) + 'px)';
+                modeClass = 'mode-locked';
+
+                let diff = frog.targetAngle - frog.angle;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+
+                // Strike Trigger: within 300px and aligned OR close range (<160px)
+                if (minDist < 300 && (Math.abs(diff) < 0.65 || minDist < 160)) {
+                    frog.state = 'STRIKE';
+                    frog.maxTongueLen = minDist;
+                    createRipple(frog.x, frog.y, 25);
+                }
+            } else {
+                frog.state = 'IDLE';
+                frog.tongueTarget = null;
+            }
+
+            const sysBadge = document.getElementById('sys-mode');
+            sysBadge.textContent = modeText;
+            sysBadge.className = modeClass;
+        }
+
+        // ── UPDATE LOOP ──
+        function update() {
+            bugs.forEach(b => b.update());
+            leaves.forEach(l => l.update());
+
+            if (predator && predator.active) predator.update();
+
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                const r = ripples[i];
+                r.r += 1.2;
+                r.alpha -= 0.02;
+                if (r.alpha <= 0) ripples.splice(i, 1);
+            }
+
+            processRetinalTectum();
+
+            // Fast smooth frog rotation towards locked bug
+            if (frog.state === 'LOCKED' || frog.state === 'STRIKE') {
+                let diff = frog.targetAngle - frog.angle;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                frog.angle += diff * 0.45; // Increased tracking responsiveness
+            }
+
+            // Frog Tongue Animation
+            if (frog.state === 'STRIKE') {
+                if (frog.tongueLen < frog.maxTongueLen && !frog.returning) {
+                    frog.tongueLen += tongueSpeed;
+                    if (frog.tongueLen >= frog.maxTongueLen) {
+                        frog.returning = true;
+                        if (frog.tongueTarget) {
+                            const idx = bugs.indexOf(frog.tongueTarget);
+                            if (idx !== -1) bugs.splice(idx, 1);
+                            createRipple(frog.tongueTarget.x, frog.tongueTarget.y, 35);
+                        }
+                    }
+                } else {
+                    frog.tongueLen -= tongueSpeed * 0.8;
+                    if (frog.tongueLen <= 0) {
+                        frog.tongueLen = 0;
+                        frog.returning = false;
+                        frog.state = 'IDLE';
+                    }
+                }
+            }
+
+            if (frog.state === 'DIVING') {
+                if (frog.divingProgress < 1) frog.divingProgress += 0.05;
+            } else {
+                if (frog.divingProgress > 0) frog.divingProgress -= 0.05;
+            }
+        }
+
+        // ── MAIN CANVAS DRAW ──
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            const waterGrad = ctx.createRadialGradient(width/2, height/2, 50, width/2, height/2, Math.max(width, height));
+            waterGrad.addColorStop(0, '#0a241b');
+            waterGrad.addColorStop(1, '#030f0b');
+            ctx.fillStyle = waterGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            rocks.forEach(r => r.draw(ctx));
+            leaves.forEach(l => l.draw(ctx));
+
+            ripples.forEach(r => {
+                ctx.save();
+                ctx.strokeStyle = `rgba(57, 255, 20, ${r.alpha})`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // Lily Pad
+            ctx.save();
+            ctx.translate(frog.x, frog.y);
+            ctx.fillStyle = '#0e3a2a';
+            ctx.strokeStyle = '#27805a';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, frog.radius * 1.5, 0.3, Math.PI * 1.85);
+            ctx.lineTo(0, 0);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            ctx.restore();
+
+            drawFrog(ctx);
+            bugs.forEach(b => b.draw(ctx));
+
+            if (predator && predator.active) predator.draw(ctx);
+        }
+
+        function drawFrog(c) {
+            c.save();
+            c.translate(frog.x, frog.y);
+            c.rotate(frog.angle);
+
+            const opacity = 1 - frog.divingProgress * 0.75;
+            const scale = 1 - frog.divingProgress * 0.3;
+            c.scale(scale, scale);
+            c.globalAlpha = opacity;
+
+            if (frog.tongueLen > 0) {
+                c.save();
+                c.strokeStyle = '#ff3366';
+                c.lineWidth = 5;
+                c.beginPath();
+                c.moveTo(0, 0);
+                c.lineTo(frog.tongueLen, 0);
+                c.stroke();
+                c.fillStyle = '#ff6699';
+                c.beginPath();
+                c.arc(frog.tongueLen, 0, 7, 0, Math.PI * 2);
+                c.fill();
+                c.restore();
+            }
+
+            // Hind legs
+            c.fillStyle = '#145237';
+            c.beginPath(); c.ellipse(-15, -28, 14, 25, -0.5, 0, Math.PI*2); c.fill();
+            c.beginPath(); c.ellipse(-15, 28, 14, 25, 0.5, 0, Math.PI*2); c.fill();
+
+            // Body
+            c.fillStyle = '#1f7a52';
+            c.strokeStyle = '#39ff14';
+            c.lineWidth = 2;
+            c.beginPath();
+            c.ellipse(0, 0, frog.radius, frog.radius * 0.8, 0, 0, Math.PI * 2);
+            c.fill(); c.stroke();
+
+            // Eyes
+            const eyeDist = 18;
+            const eyeR = 9;
+
+            c.fillStyle = '#27805a';
+            c.beginPath(); c.arc(12, -eyeDist, eyeR, 0, Math.PI * 2); c.fill();
+            c.fillStyle = '#ffbb00';
+            c.beginPath(); c.arc(12, -eyeDist, eyeR * 0.65, 0, Math.PI * 2); c.fill();
+            c.fillStyle = '#000000';
+            c.beginPath(); c.arc(14, -eyeDist, eyeR * 0.35, 0, Math.PI * 2); c.fill();
+
+            c.fillStyle = '#27805a';
+            c.beginPath(); c.arc(12, eyeDist, eyeR, 0, Math.PI * 2); c.fill();
+            c.fillStyle = '#ffbb00';
+            c.beginPath(); c.arc(12, eyeDist, eyeR * 0.65, 0, Math.PI * 2); c.fill();
+            c.fillStyle = '#000000';
+            c.beginPath(); c.arc(14, eyeDist, eyeR * 0.35, 0, Math.PI * 2); c.fill();
+
+            c.restore();
+        }
+
+        // ── DRAW RETINAL TECTUM MONITOR (PIP CANVAS) ──
+        function drawPip() {
+            if (!showPip) return;
+
+            const pw = pipCanvas.width;
+            const ph = pipCanvas.height;
+
+            pipCtx.fillStyle = '#000000';
+            pipCtx.fillRect(0, 0, pw, ph);
+
+            const scaleX = pw / width;
+            const scaleY = ph / height;
+
+            // Moving Edges (Leaves)
+            pipCtx.strokeStyle = 'rgba(0, 243, 255, 0.4)';
+            pipCtx.lineWidth = 1;
+            leaves.forEach(l => {
+                const px = l.x * scaleX;
+                const py = l.y * scaleY;
+                pipCtx.beginPath();
+                pipCtx.arc(px, py, l.size * scaleX, 0, Math.PI * 2);
+                pipCtx.stroke();
+            });
+
+            // Net Convexity (Bug Detector)
+            bugs.forEach(b => {
+                if (b.size <= maxBugSize) {
+                    const px = b.x * scaleX;
+                    const py = b.y * scaleY;
+                    const grad = pipCtx.createRadialGradient(px, py, 1, px, py, 8);
+                    grad.addColorStop(0, '#ffffff');
+                    grad.addColorStop(0.4, '#39ff14');
+                    grad.addColorStop(1, 'transparent');
+                    pipCtx.fillStyle = grad;
+                    pipCtx.beginPath();
+                    pipCtx.arc(px, py, 8, 0, Math.PI * 2);
+                    pipCtx.fill();
+                }
+            });
+
+            // Net Dimming Alarm Flash
+            if (predator && predator.active) {
+                pipCtx.fillStyle = 'rgba(255, 51, 85, 0.25)';
+                pipCtx.fillRect(0, 0, pw, ph);
+                pipCtx.fillStyle = '#ff3355';
+                pipCtx.font = '9px Courier New';
+                pipCtx.fillText('ALLARME DIMMING DETECTOR', 10, 20);
+            }
+        }
+
+        // ── GAME LOOP ──
+        function loop() {
+            update();
+            draw();
+            drawPip();
+            requestAnimationFrame(loop);
+        }
+        loop();
+
+        // ── USER INTERACTION & KEYBOARD SHORTCUTS ──
+        canvas.addEventListener('pointerdown', (e) => {
+            if (e.target !== canvas) return;
+            bugs.push(new Bug(e.clientX, e.clientY));
+            createRipple(e.clientX, e.clientY, 30);
+        });
+
+        // DESKTOP KEYBOARD CONTROLS: [S] Rock, [F] Leaf, [P] Predator at mouse Y, [Space] Clear
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const key = e.key.toLowerCase();
+            if (key === 's') {
+                rocks.push(new Rock(mouseX, mouseY));
+                createRipple(mouseX, mouseY, 20);
+            } else if (key === 'f') {
+                leaves.push(new Leaf(mouseX, mouseY));
+                createRipple(mouseX, mouseY, 30);
+            } else if (key === 'p') {
+                predator = new Predator(mouseY);
+            } else if (e.code === 'Space' || key === ' ') {
+                e.preventDefault();
+                bugs = [];
+                leaves = [];
+                rocks = [];
+                predator = null;
+            }
+        });
+
+        // ── UI CONTROLS BINDING (MOBILE / DRAWER) ──
+        const ham = document.getElementById('ham');
+        const controls = document.getElementById('controls');
+        const ov = document.getElementById('ov');
+        const introModal = document.getElementById('intro-modal');
+        const startBtn = document.getElementById('start-btn');
+
+        function toggleMenu() {
+            ham.classList.toggle('open');
+            controls.classList.toggle('open');
+            ov.classList.toggle('show');
+        }
+
+        ham.addEventListener('click', toggleMenu);
+        ov.addEventListener('click', toggleMenu);
+
+        startBtn.addEventListener('click', () => {
+            introModal.classList.remove('visible');
+            introModal.style.display = 'none';
+        });
+
+        document.getElementById('btn-spawn-bug').addEventListener('click', () => {
+            bugs.push(new Bug(mouseX, mouseY));
+        });
+        document.getElementById('btn-spawn-leaf').addEventListener('click', () => {
+            leaves.push(new Leaf(mouseX, mouseY));
+        });
+        document.getElementById('btn-spawn-rock').addEventListener('click', () => {
+            rocks.push(new Rock(mouseX, mouseY));
+        });
+        document.getElementById('btn-predator').addEventListener('click', () => {
+            predator = new Predator(mouseY);
+        });
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            bugs = [];
+            leaves = [];
+            rocks = [];
+            predator = null;
+        });
+
+        const bugSizeRange = document.getElementById('bug-size-range');
+        const valBugSize = document.getElementById('val-bug-size');
+        bugSizeRange.addEventListener('input', (e) => {
+            maxBugSize = parseInt(e.target.value);
+            valBugSize.textContent = maxBugSize + 'px';
+        });
+
+        const tongueSpeedRange = document.getElementById('tongue-speed-range');
+        const valTongueSpeed = document.getElementById('val-tongue-speed');
+        tongueSpeedRange.addEventListener('input', (e) => {
+            tongueSpeed = parseInt(e.target.value);
+            valTongueSpeed.textContent = tongueSpeed > 22 ? 'Ultra-Rapida' : (tongueSpeed > 14 ? 'Rapida' : 'Normale');
+        });
+
+        const pipContainer = document.getElementById('pip-container');
+        document.getElementById('btn-toggle-pip').addEventListener('click', () => {
+            showPip = !showPip;
+            pipContainer.style.display = showPip ? 'flex' : 'none';
+        });
+    </script>
+</body>
+</html>

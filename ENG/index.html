@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Zoo — Cybernetic Hub (Prof. Davide Riboli)</title>
+    <style>
+        :root {
+            --bg-color: #030a08;
+            --card-bg: rgba(6, 22, 16, 0.85);
+            --border-color: rgba(45, 180, 120, 0.35);
+            --text-main: #f0f7f3;
+            --text-muted: #8cbfa8;
+            --accent-lime: #39ff14;
+            --accent-cyan: #00f3ff;
+            --accent-amber: #ffbb00;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body, html {
+            width: 100%;
+            min-height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            overflow-x: hidden;
+        }
+
+        canvas#bgCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px 80px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .main-title {
+            font-size: clamp(2.2rem, 5vw, 3.8rem);
+            color: var(--accent-lime);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(57, 255, 20, 0.3);
+        }
+
+        .subtitle {
+            font-size: clamp(0.9rem, 2vw, 1.2rem);
+            color: var(--accent-cyan);
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+        }
+
+        .author-tag {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            border-top: 1px dashed var(--border-color);
+            border-bottom: 1px dashed var(--border-color);
+            display: inline-block;
+            padding: 8px 24px;
+            margin-top: 10px;
+        }
+
+        /* ── GRID LAYOUT ── */
+        .zoo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+            gap: 25px;
+            margin-bottom: 50px;
+        }
+
+        .zoo-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            backdrop-filter: blur(8px);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            color: inherit;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .zoo-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 3px;
+            background: linear-gradient(90deg, var(--accent-lime), var(--accent-cyan));
+            opacity: 0.6;
+            transition: opacity 0.3s;
+        }
+
+        .zoo-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--accent-lime);
+            box-shadow: 0 10px 30px rgba(57, 255, 20, 0.2);
+        }
+        .zoo-card:hover::before { opacity: 1; }
+
+        .card-year {
+            font-size: 0.75rem;
+            color: var(--accent-amber);
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            color: var(--accent-lime);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .card-author {
+            font-size: 0.78rem;
+            color: var(--accent-cyan);
+            margin-bottom: 15px;
+            font-style: italic;
+        }
+
+        .card-desc {
+            font-size: 0.82rem;
+            line-height: 1.5;
+            color: var(--text-muted);
+            margin-bottom: 25px;
+        }
+
+        .btn-launch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 18px;
+            background: rgba(45, 180, 120, 0.15);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+
+        .zoo-card:hover .btn-launch {
+            background: var(--accent-lime);
+            color: #000;
+            border-color: var(--accent-lime);
+        }
+
+        footer {
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            padding-top: 30px;
+            margin-top: 40px;
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 20px 15px 40px 15px; }
+            .zoo-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bgCanvas"></canvas>
+
+    <div class="container">
+        <header>
+            <h1 class="main-title">Digital Zoo</h1>
+            <p class="subtitle">Cybernetic Simulations & Generative Art (1912 — 2000)</p>
+            <div class="author-tag">
+                Prof. Davide Riboli • Academy of Fine Arts "M. Sironi" of Sassari
+            </div>
+        </header>
+
+        <div class="zoo-grid">
+            <!-- 1. SELENO (1912) -->
+            <a href="./Seleno.html" class="zoo-card">
+                <div>
+                    <div class="card-year">1912 • First Phototropic Automaton</div>
+                    <h2 class="card-title">🐕 Seleno</h2>
+                    <div class="card-author">John Hays Hammond Jr. & Benjamin Franklin Miessner</div>
+                    <p class="card-desc">
+                        The selenium electric dog. Emulates Jacques Loeb's animal tropisms, mahogany chassis inertia, and relay logic in 1912 orthochromatic film.
+                    </p>
+                </div>
+                <div class="btn-launch">
+                    <span>Launch Simulation</span>
+                    <span>➔</span>
+                </div>
+            </a>
+
+            <!-- 2. ASHBY (1948) -->
+            <a href="./Ashby.html" class="zoo-card">
+                <div>
+                    <div class="card-year">1948 • Ultrastability & Homeostasis</div>
+                    <h2 class="card-title">🐙 Ashby</h2>
+                    <div class="card-author">W. Ross Ashby (Homeostat)</div>
+                    <p class="card-desc">
+                        A digital ecosystem of 4 cells linked by a weight matrix ($4 \times 4$). Responds to environmental stress by randomly mutating connections until equilibrium is restored.
+                    </p>
+                </div>
+                <div class="btn-launch">
+                    <span>Launch Simulation</span>
+                    <span>➔</span>
+                </div>
+            </a>
+
+            <!-- 3. ELMER & ELSIE (1948-1949) -->
+            <a href="./Elmer-Elsie.html" class="zoo-card">
+                <div>
+                    <div class="card-year">1948–1949 • Machina Speculatrix</div>
+                    <h2 class="card-title">🐢 Elmer & Elsie</h2>
+                    <div class="card-author">W. Grey Walter</div>
+                    <p class="card-desc">
+                        The famous autonomous cybernetic tortoises. Emulates the two analog neurons, Generative Art mode (chromatic trails), and the mirror self-recognition experiment.
+                    </p>
+                </div>
+                <div class="btn-launch">
+                    <span>Launch Simulation</span>
+                    <span>➔</span>
+                </div>
+            </a>
+
+            <!-- 4. CORA (1951) -->
+            <a href="./Cora.html" class="zoo-card">
+                <div>
+                    <div class="card-year">1951 • Pavlovian Classical Conditioning</div>
+                    <h2 class="card-title">🐘 Cora</h2>
+                    <div class="card-author">W. Grey Walter (Machina Docilis)</div>
+                    <p class="card-desc">
+                        The Conditioned Reflex Analyser. Simulates associative learning and analog capacitive memory, allowing the automaton to anticipate danger from an auditory tone.
+                    </p>
+                </div>
+                <div class="btn-launch">
+                    <span>Launch Simulation</span>
+                    <span>➔</span>
+                </div>
+            </a>
+
+            <!-- 5. TADDEO (1959) -->
+            <a href="./Taddeo.html" class="zoo-card">
+                <div>
+                    <div class="card-year">1959 • Parallel Retinal Computer</div>
+                    <h2 class="card-title">🐸 Taddeo</h2>
+                    <div class="card-author">J. Lettvin, H. Maturana, W. McCulloch, W. Pitts</div>
+                    <p class="card-desc">
+                        The frog's retina as a feature computer. Extracts fast flies (Bug Detector), leaves, suppresses fixed rocks, and reacts to predator snakes with the PIP monitor.
+                    </p>
+                </div>
+                <div class="btn-launch">
+                    <span>Launch Simulation</span>
+                    <span>➔</span>
+                </div>
+            </a>
+
+            <!-- 6. LANGTON (1986) -->
+            <a href="./Langton.html" class="zoo-card">
+                <div>
+                    <div class="card-year">1986 • Emergent Artificial Life</div>
+                    <h2 class="card-title">🐜 Langton</h2>
+                    <div class="card-author">Christopher Langton</div>
+                    <p class="card-desc">
+                        A famous 2D cellular automaton demonstrating Emergence. From microscopic turn rules, a miraculous 104-step Highway 🛣️ spontaneously emerges after chaotic wandering.
+                    </p>
+                </div>
+                <div class="btn-launch">
+                    <span>Launch Simulation</span>
+                    <span>➔</span>
+                </div>
+            </a>
+
+            <!-- 7. CRAIG (1987) -->
+            <a href="./Craig.html" class="zoo-card">
+                <div>
+                    <div class="card-year">1987 • Emergent Fish Schooling & Boids</div>
+                    <h2 class="card-title">🐟 Craig</h2>
+                    <div class="card-author">Craig Reynolds</div>
+                    <p class="card-desc">
+                        The famous Boids algorithm demonstrating collective flocking intelligence. 3 microscopic rules (Separation, Alignment, Cohesion) generate bioluminescent schooling fish and predator shark evasion.
+                    </p>
+                </div>
+                <div class="btn-launch">
+                    <span>Launch Simulation</span>
+                    <span>➔</span>
+                </div>
+            </a>
+
+            <!-- 8. MUSHY (2000) -->
+            <a href="./Mushy.html" class="zoo-card">
+                <div>
+                    <div class="card-year">2000 • Cybernetic Slime Mold & Network</div>
+                    <h2 class="card-title">🍄 Mushy</h2>
+                    <div class="card-author">Toshiyuki Nakagaki (Nature 2000) & Jeff Jones (2010)</div>
+                    <p class="card-desc">
+                        A brainless single-celled plasmodium. Auto-organizes ultra-efficient bioluminescent vein networks to connect food sources, solve mazes, and capture PNG generative artwork.
+                    </p>
+                </div>
+                <div class="btn-launch">
+                    <span>Launch Simulation</span>
+                    <span>➔</span>
+                </div>
+            </a>
+        </div>
+
+        <footer>
+            <p>Digital Zoo — An exploration into the pre-history of Artificial Intelligence and Robotics.</p>
+            <p style="margin-top: 6px; font-size: 0.75rem; color: #55806e;">MIT License • Prof. Davide Riboli</p>
+        </footer>
+    </div>
+
+    <!-- BACKGROUND INTERACTIVE ANIMAL ICONS -->
+    <script>
+        const canvas = document.getElementById('bgCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        const animalIcons = ['🐕', '🐙', '🐢', '🐘', '🐸', '🐜', '🐟', '🍄'];
+        const particles = [];
+        for (let i = 0; i < 35; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.7,
+                vy: (Math.random() - 0.5) * 0.7,
+                icon: animalIcons[Math.floor(Math.random() * animalIcons.length)],
+                fontSize: Math.random() * 16 + 18,
+                alpha: Math.random() * 0.35 + 0.15,
+                rotation: (Math.random() - 0.5) * 0.4,
+                rotSpeed: (Math.random() - 0.5) * 0.005
+            });
+        }
+
+        let mouseX = width / 2;
+        let mouseY = height / 2;
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        function loop() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw floating animal icons
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rotation += p.rotSpeed;
+
+                if (p.x < -40) p.x = width + 40;
+                if (p.x > width + 40) p.x = -40;
+                if (p.y < -40) p.y = height + 40;
+                if (p.y > height + 40) p.y = -40;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.globalAlpha = p.alpha;
+                ctx.font = `${p.fontSize}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(p.icon, 0, 0);
+                ctx.restore();
+            });
+
+            // Interactive mouse glow
+            const grad = ctx.createRadialGradient(mouseX, mouseY, 10, mouseX, mouseY, 260);
+            grad.addColorStop(0, 'rgba(0, 243, 255, 0.08)');
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(mouseX, mouseY, 260, 0, Math.PI * 2);
+            ctx.fill();
+
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
