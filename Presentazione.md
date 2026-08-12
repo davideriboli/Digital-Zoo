@@ -21,7 +21,7 @@ La postazione è pensata come uno spazio aperto di sperimentazione guidata, arti
 2. **Sperimentazione ludica e diretta:**  
    I partecipanti prendono il controllo delle simulazioni attraverso interfacce web sviluppate in HTML5 Canvas e Vanilla JavaScript. Possono manipolare lanterna e polarità con Seleno, disturbare l'equilibrio dell'omeostato di Ashby, attivare specchi per osservare l'auto-riconoscimento delle tartarughe, addestrare Cora con segnali acustici, lanciare stimoli retinici alla rana Taddeo, osservare l'emersione spontanea dell'Autostrada con la formica di Langton, introdurre squali predatori nello sciame di pesci di Craig o posizionare cibo per guidare l'ottimizzazione venosa di Mushy. L'elemento di gioco rende intuitivi concetti altrimenti astratti come il fototropismo, l'omeostasi, il riflesso condizionato, la percezione retinica e l'intelligenza di sciame.
 
-3. **Ispezione del codice e dialogo con l'IA:**  
+3. **Ispezione del codice:**  
    Chi desidera approfondire ha la possibilità di aprire direttamente il codice sorgente che muove le simulazioni. I ragazzi potranno chiedere chiarimenti sul funzionamento dei singoli blocchi di codice, sulla matematica dei vettori o sulla storia dei pionieri della cibernetica.
 
 ### Rilevanza scientifica e impatto divulgativo
